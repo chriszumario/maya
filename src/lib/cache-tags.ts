@@ -1,0 +1,15 @@
+export const cacheTags = {
+  admin: "admin",
+  adminPending: "admin-pending",
+  adminUsers: "admin-users",
+  dashboard: "dashboard",
+  goals: "goals",
+  insights: "insights",
+  journal: "journal",
+  nutrition: "nutrition",
+  today: "today",
+  trends: "trends",
+  adminUser: (userId: number) => `admin-user-${userId}`,
+  goal: (goalId: number) => `goal-${goalId}`,
+  nutritionDate: (date: string) => `nutrition-${date}`,
+} as const;
