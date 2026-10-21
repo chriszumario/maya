@@ -40,3 +40,27 @@ test("renders the pending approval Server Component", async ({ page }) => {
     page.getByRole("link", { name: "Volver al inicio de sesión" }),
   ).toHaveAttribute("href", "/login");
 });
+
+test("keeps public forms within the viewport", async ({ page }) => {
+  for (const path of [
+    "/login",
+    "/register",
+    "/pending-approval",
+    "/auth/session-expired",
+  ]) {
+    await page.goto(path);
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= window.innerWidth,
+      ),
+    ).toBe(true);
+  }
+});
+
+test("requires an explicit action to return from an expired session", async ({
+  page,
+}) => {
+  await page.goto("/auth/session-expired");
+  await page.getByRole("button", { name: "Volver a iniciar sesión" }).click();
+  await expect(page).toHaveURL("/login");
+});

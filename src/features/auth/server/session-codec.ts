@@ -1,3 +1,5 @@
+import "server-only";
+
 import {
   createCipheriv,
   createDecipheriv,
@@ -14,6 +16,12 @@ export type AppSessionData = Partial<AuthTokens> & { user?: AuthUser };
 export const SESSION_COOKIE_NAME = "maya_session";
 export const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 30;
 const MAX_SESSION_COOKIE_LENGTH = 3_800;
+const IV_LENGTH = 12;
+const AUTH_TAG_LENGTH = 16;
+const SessionEnvelopeSchema = v.object({
+  expiresAt: v.pipe(v.number(), v.integer()),
+  session: AuthSessionSchema,
+});
 
 const DEVELOPMENT_SECRET = "maya-local-development-secret-change-me-2026";
 const EXAMPLE_SECRET = "replace-with-a-random-secret-of-at-least-32-characters";
@@ -39,10 +47,18 @@ function encryptionKey() {
 }
 
 export function encodeSession(data: AppSessionData) {
-  const iv = randomBytes(12);
-  const cipher = createCipheriv("aes-256-gcm", encryptionKey(), iv);
+  const iv = randomBytes(IV_LENGTH);
+  const cipher = createCipheriv("aes-256-gcm", encryptionKey(), iv, {
+    authTagLength: AUTH_TAG_LENGTH,
+  });
   const encrypted = Buffer.concat([
-    cipher.update(JSON.stringify(data), "utf8"),
+    cipher.update(
+      JSON.stringify({
+        expiresAt: Math.floor(Date.now() / 1000) + SESSION_MAX_AGE_SECONDS,
+        session: data,
+      }),
+      "utf8",
+    ),
     cipher.final(),
   ]);
 
@@ -56,23 +72,39 @@ export function encodeSession(data: AppSessionData) {
 }
 
 export function decodeSession(value?: string): AppSessionData {
-  if (!value) return {};
+  if (!value || value.length > MAX_SESSION_COOKIE_LENGTH) return {};
 
   try {
-    const [iv, tag, encrypted] = value
-      .split(".")
-      .map((part) => Buffer.from(part, "base64url"));
-    if (!iv || !tag || !encrypted) return {};
+    const parts = value.split(".");
+    if (
+      parts.length !== 3 ||
+      parts.some((part) => !/^[A-Za-z0-9_-]+$/.test(part))
+    )
+      return {};
+    const [iv, tag, encrypted] = parts.map((part) =>
+      Buffer.from(part, "base64url"),
+    );
+    if (
+      iv?.length !== IV_LENGTH ||
+      tag?.length !== AUTH_TAG_LENGTH ||
+      !encrypted?.length
+    )
+      return {};
 
-    const decipher = createDecipheriv("aes-256-gcm", encryptionKey(), iv);
+    const decipher = createDecipheriv("aes-256-gcm", encryptionKey(), iv, {
+      authTagLength: AUTH_TAG_LENGTH,
+    });
     decipher.setAuthTag(tag);
     const decoded: unknown = JSON.parse(
       Buffer.concat([decipher.update(encrypted), decipher.final()]).toString(
         "utf8",
       ),
     );
-    const parsed = v.safeParse(AuthSessionSchema, decoded);
-    return parsed.success ? parsed.output : {};
+    const parsed = v.safeParse(SessionEnvelopeSchema, decoded);
+    return parsed.success &&
+      parsed.output.expiresAt > Math.floor(Date.now() / 1000)
+      ? parsed.output.session
+      : {};
   } catch {
     return {};
   }

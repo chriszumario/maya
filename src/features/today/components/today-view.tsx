@@ -43,6 +43,7 @@ import {
 } from "@/components/ui/tooltip";
 import { useServerMutation as useMutation } from "@/hooks/use-server-mutation";
 import { throwActionError } from "@/lib/action-error";
+import { readStoredValue, writeStoredValue } from "@/lib/browser-storage";
 import { cn } from "@/lib/utils";
 import { refreshTodayTasksFn, updateTodayTaskFn } from "../actions";
 import {
@@ -64,6 +65,11 @@ import {
   updateTodayTaskData,
 } from "../model/today";
 import type { TaskLogStatus, TodayTask, TodayTasks } from "../schemas";
+import {
+  playTimerTone,
+  primeTimerFeedback,
+  showBackgroundNotification,
+} from "../timer-feedback";
 
 function timerStorageKey(userId: number, date: string) {
   return `maya:today-timer:${userId}:${date}`;
@@ -71,72 +77,6 @@ function timerStorageKey(userId: number, date: string) {
 
 function autoCompleteStorageKey(userId: number) {
   return `maya:today-auto-complete:${userId}`;
-}
-
-let timerAudioContext: AudioContext | null = null;
-
-function getTimerAudioContext() {
-  if (!timerAudioContext) timerAudioContext = new AudioContext();
-  return timerAudioContext;
-}
-
-async function primeTimerFeedback() {
-  const notificationPermission =
-    "Notification" in window && Notification.permission === "default"
-      ? Notification.requestPermission().catch(() => "denied" as const)
-      : null;
-
-  try {
-    const context = getTimerAudioContext();
-    if (context.state === "suspended") await context.resume();
-    const oscillator = context.createOscillator();
-    const gain = context.createGain();
-    gain.gain.value = 0;
-    oscillator.connect(gain).connect(context.destination);
-    oscillator.start();
-    oscillator.stop(context.currentTime + 0.01);
-  } catch {
-    // El navegador puede bloquear audio hasta recibir una interacción válida.
-  }
-
-  await notificationPermission;
-}
-
-async function playTimerTone(kind: "warning" | "complete") {
-  try {
-    const context = getTimerAudioContext();
-    if (context.state === "suspended") await context.resume();
-    const frequencies = kind === "complete" ? [784, 988, 1_176] : [660, 784];
-    frequencies.forEach((frequency, index) => {
-      const oscillator = context.createOscillator();
-      const gain = context.createGain();
-      const startsAt = context.currentTime + index * 0.16;
-      oscillator.type = "sine";
-      oscillator.frequency.value = frequency;
-      gain.gain.setValueAtTime(0.0001, startsAt);
-      gain.gain.exponentialRampToValueAtTime(0.18, startsAt + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.0001, startsAt + 0.22);
-      oscillator.connect(gain).connect(context.destination);
-      oscillator.start(startsAt);
-      oscillator.stop(startsAt + 0.24);
-    });
-  } catch {
-    // Si el navegador bloquea audio, el aviso visual permanece disponible.
-  }
-}
-
-function showBackgroundNotification(title: string, body: string, tag: string) {
-  if (
-    document.hidden &&
-    "Notification" in window &&
-    Notification.permission === "granted"
-  ) {
-    try {
-      new Notification(title, { body, tag });
-    } catch {
-      // Algunos navegadores móviles exigen un service worker.
-    }
-  }
 }
 
 function boundedMinutes(seconds: number) {
@@ -267,7 +207,7 @@ export function TodayView({
 
   useEffect(() => {
     try {
-      const stored = window.localStorage.getItem(autoCompleteKey);
+      const stored = readStoredValue(autoCompleteKey);
       if (stored) {
         const parsed = JSON.parse(stored) as Record<string, unknown>;
         setAutoCompleteOverrides(
@@ -280,7 +220,7 @@ export function TodayView({
         );
       }
     } catch {
-      window.localStorage.removeItem(autoCompleteKey);
+      writeStoredValue(autoCompleteKey, null);
     } finally {
       setAutoCompleteReady(true);
     }
@@ -292,7 +232,7 @@ export function TodayView({
       (task) => task.status === "in_progress" && task.estimatedMinutes > 0,
     );
     const serverActiveTask = serverActiveTasks[0];
-    const stored = window.localStorage.getItem(timerKey);
+    const stored = readStoredValue(timerKey);
     if (stored) {
       try {
         const restored = restoreTaskTimer(
@@ -306,7 +246,7 @@ export function TodayView({
           return;
         }
       } catch {
-        window.localStorage.removeItem(timerKey);
+        writeStoredValue(timerKey, null);
       }
     }
     setTimer(
@@ -327,11 +267,7 @@ export function TodayView({
 
   useEffect(() => {
     if (!timerReady) return;
-    if (timer) {
-      window.localStorage.setItem(timerKey, JSON.stringify(timer));
-    } else {
-      window.localStorage.removeItem(timerKey);
-    }
+    writeStoredValue(timerKey, timer ? JSON.stringify(timer) : null);
   }, [timer, timerKey, timerReady]);
 
   useEffect(() => {
@@ -421,9 +357,7 @@ export function TodayView({
         });
         setTimer(null);
       })
-      .catch(() => {
-        completionInFlightRef.current = null;
-      });
+      .catch(() => undefined);
   }, [
     activeTask,
     autoCompleteEnabled,
@@ -494,7 +428,7 @@ export function TodayView({
       setData(refreshed);
       if (!serverTask) {
         if (refreshed.date !== requestDate) {
-          window.localStorage.removeItem(timerKey);
+          writeStoredValue(timerKey, null);
         }
         setTimer((current) => (current?.taskId === taskId ? null : current));
         return;
@@ -537,11 +471,9 @@ export function TodayView({
   }
 
   function setTaskAutoComplete(taskId: number, checked: boolean) {
-    setAutoCompleteOverrides((current) => {
-      const next = { ...current, [String(taskId)]: checked };
-      window.localStorage.setItem(autoCompleteKey, JSON.stringify(next));
-      return next;
-    });
+    const next = { ...autoCompleteOverrides, [String(taskId)]: checked };
+    writeStoredValue(autoCompleteKey, JSON.stringify(next));
+    setAutoCompleteOverrides(next);
   }
 
   return (

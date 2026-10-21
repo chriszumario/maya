@@ -96,13 +96,8 @@ function formatSchedule(task: GoalTask) {
   return `${schedule} · ${task.startTime} · ${task.estimatedMinutes} min`;
 }
 
-export function GoalDetailView({
-  goalId,
-  goal,
-}: {
-  goalId: number;
-  goal: GoalDetail;
-}) {
+export function GoalDetailView({ goal }: { goal: GoalDetail }) {
+  const goalId = goal.id;
   const router = useRouter();
   const [deleteGoalOpen, setDeleteGoalOpen] = useState(false);
   const [taskToDelete, setTaskToDelete] = useState<GoalTask | null>(null);
@@ -185,7 +180,9 @@ export function GoalDetailView({
             {goal.motivation}
           </p>
           {actionError ? (
-            <p className="mt-3 text-sm text-destructive">{actionError}</p>
+            <p role="alert" className="mt-3 text-sm text-destructive">
+              {actionError}
+            </p>
           ) : null}
         </div>
         <div className="flex flex-wrap gap-2">

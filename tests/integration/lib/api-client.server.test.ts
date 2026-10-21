@@ -28,6 +28,8 @@ describe("API client", () => {
     expect(headers.get("accept")).toBe("application/json");
     expect(headers.get("authorization")).toBe("Bearer access-token");
     expect(headers.get("content-type")).toBe("application/json");
+    expect(request?.cache).toBe("no-store");
+    expect(request?.redirect).toBe("error");
   });
 
   test("keeps API error code and status", async () => {
@@ -69,5 +71,19 @@ describe("API client", () => {
     vi.mocked(fetch).mockResolvedValue(new Response(null, { status: 204 }));
 
     await expect(apiFetch("/logout", { method: "POST" })).resolves.toBeNull();
+  });
+
+  test.each([
+    "ftp://localhost/api",
+    "https://user:password@maya.test/api",
+    "https://maya.test/api?redirect=elsewhere",
+    "https://maya.test/api#fragment",
+  ])("rejects unsafe API configuration: %s", async (url) => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    vi.stubEnv("API_URL", url);
+    await expect(apiFetch("/auth/login")).rejects.toMatchObject({
+      code: "NETWORK_ERROR",
+    });
+    expect(fetch).not.toHaveBeenCalled();
   });
 });

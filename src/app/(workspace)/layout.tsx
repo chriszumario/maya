@@ -1,6 +1,11 @@
 import { redirect } from "next/navigation";
 import { type ReactNode, Suspense } from "react";
 import { AppShell } from "@/components/layout/app-shell";
+import {
+  LoadingHeader,
+  LoadingRows,
+  PageLoading,
+} from "@/components/shared/page-loading";
 import { readSessionUser } from "@/features/auth/server/auth-session.server";
 
 type WorkspaceLayoutProps = { children: ReactNode };
@@ -13,11 +18,12 @@ async function AuthenticatedWorkspace({ children }: WorkspaceLayoutProps) {
 
 function WorkspaceShellFallback() {
   return (
-    <div
-      className="min-h-screen bg-background"
-      aria-label="Preparando tu espacio"
-      role="status"
-    />
+    <div className="mx-auto min-h-screen w-full max-w-360 px-4 py-8 sm:px-7">
+      <PageLoading label="tu espacio">
+        <LoadingHeader />
+        <LoadingRows />
+      </PageLoading>
+    </div>
   );
 }
 

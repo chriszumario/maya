@@ -1,5 +1,8 @@
+import "server-only";
 import * as v from "valibot";
+import { readSessionUser } from "@/features/auth/server/auth-session.server";
 import { authenticatedApiFetch } from "@/features/auth/server/authenticated-api.server";
+import { ApiClientError } from "@/lib/api-client.server";
 import { IdSchema } from "@/lib/schemas/maya.schema";
 import { toPublicError } from "@/lib/server-error.server";
 import { validatedOperation } from "@/lib/validated-operation";
@@ -20,6 +23,14 @@ const SessionsRevokedSchema = v.object({
 
 async function adminOperation<T>(operation: () => Promise<T>, message: string) {
   try {
+    const user = await readSessionUser();
+    if (!user?.isAdmin) {
+      throw new ApiClientError({
+        code: "FORBIDDEN",
+        message: "No tienes permisos para realizar esta operación.",
+        status: 403,
+      });
+    }
     return { ok: true as const, data: await operation() };
   } catch (error) {
     return { ok: false as const, error: toPublicError(error, message) };

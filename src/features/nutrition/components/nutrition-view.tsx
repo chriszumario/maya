@@ -185,6 +185,10 @@ export function NutritionView({
                     </div>
                     <p className="mt-1 text-xs text-muted-foreground">
                       {formatQuantity(entry)}
+                      <span className="sm:hidden">
+                        {" "}
+                        · {entry.calories.toLocaleString("es-BO")} kcal
+                      </span>
                     </p>
                   </div>
                   <p className="hidden text-sm font-semibold sm:block">

@@ -9,6 +9,7 @@ import {
   useForm,
 } from "@formisch/react";
 import { KeyRoundIcon, SaveIcon, UserRoundIcon } from "lucide-react";
+import { useState } from "react";
 
 import { PageHeader } from "@/components/shared/page-header";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -36,6 +37,7 @@ import { updatePasswordAction, updateProfileAction } from "../actions";
 import { PasswordFormSchema, ProfileFormSchema } from "../schemas";
 
 function ProfileForm({ user }: { user: AuthUser }) {
+  const [saved, setSaved] = useState(false);
   const form = useForm({
     schema: ProfileFormSchema,
     initialInput: { name: user.name, email: user.email, currentPassword: "" },
@@ -46,6 +48,7 @@ function ProfileForm({ user }: { user: AuthUser }) {
   const handleSubmit: SubmitHandler<typeof ProfileFormSchema> = async (
     output,
   ) => {
+    setSaved(false);
     setErrors(form, { errors: null });
     if (output.email !== user.email && !output.currentPassword) {
       setErrors(form, {
@@ -67,10 +70,11 @@ function ProfileForm({ user }: { user: AuthUser }) {
         currentPassword: "",
       },
     });
+    setSaved(true);
   };
 
   return (
-    <Form of={form} onSubmit={handleSubmit}>
+    <Form of={form} onSubmit={handleSubmit} onInput={() => setSaved(false)}>
       <Card className="max-w-2xl">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
@@ -141,7 +145,10 @@ function ProfileForm({ user }: { user: AuthUser }) {
             <FieldError>{form.errors?.[0]}</FieldError>
           </FieldGroup>
         </CardContent>
-        <CardFooter className="border-t">
+        <CardFooter className="flex-wrap gap-3 border-t">
+          <p role="status" className="text-sm text-primary">
+            {saved ? "Perfil guardado correctamente." : ""}
+          </p>
           <Button
             type="submit"
             className="ml-auto"

@@ -7,6 +7,7 @@ import {
   useEffect,
   useState,
 } from "react";
+import { readStoredValue, writeStoredValue } from "@/lib/browser-storage";
 
 export type Theme = "dark" | "light" | "system";
 
@@ -54,7 +55,7 @@ export function ThemeProvider({
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    const storedTheme = window.localStorage.getItem(storageKey);
+    const storedTheme = readStoredValue(storageKey);
     if (
       storedTheme === "dark" ||
       storedTheme === "light" ||
@@ -80,7 +81,7 @@ export function ThemeProvider({
   const value: ThemeContextValue = {
     theme,
     setTheme(nextTheme) {
-      window.localStorage.setItem(storageKey, nextTheme);
+      writeStoredValue(storageKey, nextTheme);
       setThemeState(nextTheme);
       setReady(true);
     },

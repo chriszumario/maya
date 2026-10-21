@@ -3,6 +3,7 @@ import { describe, expect, test, vi } from "vitest";
 import {
   decodeSession,
   encodeSession,
+  SESSION_MAX_AGE_SECONDS,
 } from "@/features/auth/server/session-codec";
 import { testAccessToken, testRefreshToken } from "../../../../support/auth";
 
@@ -48,5 +49,40 @@ describe("session codec", () => {
         accessToken: `${"a".repeat(3_000)}.payload.signature`,
       }),
     ).toThrow("tamaño seguro");
+  });
+
+  test("rejects truncated GCM tags even when their prefix is authentic", () => {
+    const [iv, tag, ciphertext] = encodeSession(validSession).split(".");
+    for (const length of [4, 8, 12, 13, 14, 15]) {
+      const truncated = Buffer.from(tag ?? "", "base64url")
+        .subarray(0, length)
+        .toString("base64url");
+      expect(decodeSession(`${iv}.${truncated}.${ciphertext}`)).toEqual({});
+    }
+  });
+
+  test("rejects expired cookies even when replayed outside the browser", () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date("2026-09-19T12:00:00Z"));
+      const cookie = encodeSession(validSession);
+      vi.advanceTimersByTime(SESSION_MAX_AGE_SECONDS * 1000 - 1);
+      expect(decodeSession(cookie)).toEqual(validSession);
+      vi.advanceTimersByTime(1000);
+      expect(decodeSession(cookie)).toEqual({});
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test("rejects extra segments and modified ciphertext", () => {
+    const cookie = encodeSession(validSession);
+    expect(decodeSession(`${cookie}.extra`)).toEqual({});
+    const [iv, tag, ciphertext] = cookie.split(".");
+    expect(
+      decodeSession(
+        `${iv}.${tag}.${ciphertext?.startsWith("A") ? "B" : "A"}${ciphertext?.slice(1)}`,
+      ),
+    ).toEqual({});
   });
 });

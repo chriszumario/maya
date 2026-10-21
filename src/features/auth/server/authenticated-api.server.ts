@@ -1,3 +1,4 @@
+import "server-only";
 import { redirect } from "next/navigation";
 import { ApiClientError, apiFetch } from "@/lib/api-client.server";
 import { getAppSession } from "./auth-session.server";

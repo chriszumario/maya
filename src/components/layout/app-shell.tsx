@@ -21,7 +21,6 @@ import {
   UsersIcon,
 } from "lucide-react";
 import type { Route } from "next";
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   type ComponentType,
@@ -31,6 +30,7 @@ import {
 } from "react";
 
 import { MayaMark } from "@/components/maya-mark";
+import { IntentPrefetchLink as Link } from "@/components/shared/intent-prefetch-link";
 import { useTheme } from "@/components/theme-provider";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -47,6 +47,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import {
   Sheet,
+  SheetClose,
   SheetContent,
   SheetDescription,
   SheetHeader,
@@ -175,6 +176,19 @@ function NavigationGroup({
               </TooltipTrigger>
               <TooltipContent side="right">{item.label}</TooltipContent>
             </Tooltip>
+          ) : mobile ? (
+            <SheetClose
+              key={item.to}
+              render={
+                <Link
+                  href={item.to}
+                  aria-current={isActive ? "page" : undefined}
+                  className={linkClassName}
+                />
+              }
+            >
+              {linkContent}
+            </SheetClose>
           ) : (
             <Link
               key={item.to}
@@ -392,7 +406,18 @@ function MobileNavigation({ isAdmin }: { isAdmin: boolean }) {
       </SheetTrigger>
       <SheetContent side="left">
         <SheetHeader>
-          <Brand />
+          <SheetClose
+            render={
+              <Link
+                href="/"
+                aria-label="Maya, ir al inicio"
+                className="flex items-center gap-3 rounded-xl focus-visible:ring-2"
+              />
+            }
+          >
+            <MayaMark />
+            <span className="font-heading text-xl font-semibold">Maya</span>
+          </SheetClose>
           <SheetTitle className="sr-only">Navegación</SheetTitle>
           <SheetDescription className="sr-only">
             Accede a todas las áreas de tu espacio personal.
@@ -481,6 +506,7 @@ export function AppShell({ children, ...account }: AppShellProps) {
           />
           <main
             id="contenido-principal"
+            tabIndex={-1}
             className="mx-auto max-w-360 px-4 py-6 sm:px-7 sm:py-8 xl:px-10"
           >
             {children}

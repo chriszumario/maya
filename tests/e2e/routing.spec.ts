@@ -11,6 +11,12 @@ test("redirects private routes to login and preserves the destination", async ({
   ).toBeVisible();
 });
 
+test("does not clear a session through a GET request", async ({ request }) => {
+  const response = await request.get("/auth/session-expired");
+  expect(response.status()).toBe(200);
+  expect(response.headers()["set-cookie"]).toBeUndefined();
+});
+
 test("sets security headers on public pages", async ({ request }) => {
   const response = await request.get("/pending-approval");
 

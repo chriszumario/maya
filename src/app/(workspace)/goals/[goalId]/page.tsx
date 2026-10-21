@@ -5,7 +5,7 @@ import { getGoal } from "@/features/goals/queries";
 async function GoalContent({ params }: PageProps<"/goals/[goalId]">) {
   const id = Number((await params).goalId);
   if (!Number.isInteger(id) || id < 1) notFound();
-  return <GoalDetailView goalId={id} goal={await getGoal(id)} />;
+  return <GoalDetailView goal={await getGoal(id)} />;
 }
 
 export default function GoalPage(props: PageProps<"/goals/[goalId]">) {

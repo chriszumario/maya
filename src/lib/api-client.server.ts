@@ -1,3 +1,4 @@
+import "server-only";
 import * as v from "valibot";
 
 const ServerEnvironmentSchema = v.object({
@@ -36,9 +37,20 @@ function getApiBaseUrl() {
     .API_URL.replace(/\/$/, "");
   const url = new URL(apiUrl);
   if (
+    !["http:", "https:"].includes(url.protocol) ||
+    url.username ||
+    url.password ||
+    url.search ||
+    url.hash
+  ) {
+    throw new Error(
+      "API_URL debe ser una URL HTTP sin credenciales, query ni fragmento.",
+    );
+  }
+  if (
     process.env.NODE_ENV === "production" &&
     url.protocol !== "https:" &&
-    !["localhost", "127.0.0.1", "::1"].includes(url.hostname)
+    !["localhost", "127.0.0.1", "[::1]"].includes(url.hostname)
   ) {
     throw new Error("API_URL debe usar HTTPS en producción.");
   }
@@ -95,6 +107,8 @@ export async function apiFetch(
       : timeoutSignal;
     response = await fetch(`${getApiBaseUrl()}${path}`, {
       ...requestOptions,
+      cache: "no-store",
+      redirect: "error",
       headers,
       signal,
     });
