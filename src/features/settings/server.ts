@@ -47,7 +47,11 @@ export const updateProfileFn = validatedOperation(
         },
       };
     }
-    if (data.name === currentUser.name && !emailChanged) {
+    if (
+      data.name === currentUser.name &&
+      !emailChanged &&
+      data.timezone === currentUser.timezone
+    ) {
       return { ok: true as const, data: currentUser };
     }
 
@@ -55,9 +59,13 @@ export const updateProfileFn = validatedOperation(
       const response = await authenticatedApiFetch("/auth/profile", {
         method: "PATCH",
         body: JSON.stringify({
-          name: data.name,
-          email: data.email,
-          ...(emailChanged ? { currentPassword: data.currentPassword } : {}),
+          ...(data.name !== currentUser.name ? { name: data.name } : {}),
+          ...(data.timezone !== currentUser.timezone
+            ? { timezone: data.timezone }
+            : {}),
+          ...(emailChanged
+            ? { email: data.email, currentPassword: data.currentPassword }
+            : {}),
         }),
       });
       const user = v.parse(AuthUserSchema, response);

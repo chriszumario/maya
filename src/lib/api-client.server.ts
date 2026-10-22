@@ -4,7 +4,7 @@ import * as v from "valibot";
 const ServerEnvironmentSchema = v.object({
   API_URL: v.optional(
     v.pipe(v.string(), v.trim(), v.url("API_URL debe ser una URL válida.")),
-    "http://localhost:3001/api",
+    "http://localhost:4000",
   ),
 });
 
@@ -18,16 +18,28 @@ const ApiErrorSchema = v.object({
 export class ApiClientError extends Error {
   readonly code: string;
   readonly status: number;
+  readonly requestId?: string;
+  readonly retryAfter?: number;
 
   constructor({
     code,
     message,
     status,
-  }: { code: string; message: string; status: number }) {
+    requestId,
+    retryAfter,
+  }: {
+    code: string;
+    message: string;
+    status: number;
+    requestId?: string;
+    retryAfter?: number;
+  }) {
     super(message);
     this.name = "ApiClientError";
     this.code = code;
     this.status = status;
+    this.requestId = requestId;
+    this.retryAfter = retryAfter;
   }
 }
 
@@ -40,11 +52,12 @@ function getApiBaseUrl() {
     !["http:", "https:"].includes(url.protocol) ||
     url.username ||
     url.password ||
+    url.pathname !== "/" ||
     url.search ||
     url.hash
   ) {
     throw new Error(
-      "API_URL debe ser una URL HTTP sin credenciales, query ni fragmento.",
+      "API_URL debe ser un origen HTTP sin prefijos de ruta, credenciales, query ni fragmento.",
     );
   }
   if (
@@ -71,6 +84,26 @@ const safeMessagesByCode: Record<string, string> = {
   EMAIL_IN_USE: "Ya existe una cuenta con ese correo electrónico.",
   INVALID_CREDENTIALS: "El correo o la contraseña no son correctos.",
   PENDING_APPROVAL: "Tu cuenta todavía está pendiente de aprobación.",
+  INVALID_PASSWORD: "La contraseña actual no es correcta.",
+  PASSWORD_CHANGED:
+    "La contraseña cambió en otra sesión. Vuelve a iniciar sesión.",
+  GOAL_TERMINAL: "La meta ya está completada o cancelada. Recarga sus datos.",
+  TASK_UPDATE_CONFLICT:
+    "La tarea cambió en otra sesión. Recarga antes de volver a guardar.",
+  TASK_LOG_UPDATE_CONFLICT:
+    "La ejecución cambió en otra sesión. Recarga la agenda.",
+  TASK_NOT_ACTIVE: "La tarea ya no está activa. Recarga la agenda.",
+  GOAL_NOT_IN_PROGRESS: "La meta ya no está en curso. Recarga la agenda.",
+  TASK_NOT_SCHEDULED:
+    "La tarea no está programada para hoy. Recarga la agenda.",
+  AI_NOT_CONFIGURED: "La asistencia de IA no está disponible temporalmente.",
+  AI_EMPTY_RESPONSE: "La IA no devolvió una sugerencia. Conservamos tu texto.",
+  AI_INVALID_RESPONSE:
+    "La sugerencia de IA no es válida. Conservamos tu texto.",
+  AI_PROVIDER_ERROR:
+    "No se pudo consultar la IA. Intenta nuevamente más tarde.",
+  RATE_LIMIT_UNAVAILABLE:
+    "El servicio no está disponible temporalmente. Conservamos tu sesión.",
 };
 
 function safeApiMessage(status: number, code: string) {
@@ -101,7 +134,9 @@ export async function apiFetch(
 
   let response: Response;
   try {
-    const timeoutSignal = AbortSignal.timeout(15_000);
+    const timeoutSignal = AbortSignal.timeout(
+      path.startsWith("/ai/") ? 20_000 : 15_000,
+    );
     const signal = requestOptions.signal
       ? AbortSignal.any([requestOptions.signal, timeoutSignal])
       : timeoutSignal;
@@ -125,7 +160,11 @@ export async function apiFetch(
     });
   }
 
-  const body = await readJson(response);
+  const body = ["HEAD", "OPTIONS"].includes(
+    requestOptions.method?.toUpperCase() ?? "GET",
+  )
+    ? null
+    : await readJson(response);
   if (!response.ok) {
     const result = v.safeParse(ApiErrorSchema, body);
     const code = result.success ? result.output.error.code : "HTTP_ERROR";
@@ -139,6 +178,10 @@ export async function apiFetch(
       code,
       message: safeApiMessage(response.status, code),
       status: response.status,
+      requestId: response.headers.get("X-Request-Id") ?? undefined,
+      retryAfter: /^\d+$/.test(response.headers.get("Retry-After") ?? "")
+        ? Number(response.headers.get("Retry-After"))
+        : undefined,
     });
   }
 

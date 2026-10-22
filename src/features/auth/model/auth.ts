@@ -3,6 +3,8 @@ export type { AuthSession, AuthTokens, AuthUser } from "../schemas/auth.schema";
 export type AuthError = {
   code: string;
   message: string;
+  requestId?: string;
+  retryAfter?: number;
 };
 
 export type AuthActionResult<TData> =

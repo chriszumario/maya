@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 
 import { act, renderHook } from "@testing-library/react";
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 
 import { useServerMutation } from "@/hooks/use-server-mutation";
 
@@ -14,6 +14,40 @@ function deferred<T>() {
 }
 
 describe("useServerMutation", () => {
+  test("discards a late AI response after an edit resets the request", async () => {
+    const pending = deferred<string>();
+    const onSuccess = vi.fn();
+    const { result } = renderHook(() =>
+      useServerMutation({ mutationFn: () => pending.promise, onSuccess }),
+    );
+    let request!: Promise<string>;
+    await act(async () => {
+      request = result.current.mutateAsync(undefined);
+    });
+    act(() => result.current.reset());
+    await act(async () => {
+      pending.resolve("old suggestion");
+      await request;
+    });
+    expect(onSuccess).not.toHaveBeenCalled();
+    expect(result.current.isPending).toBe(false);
+  });
+
+  test("does not apply a response after leaving the resource", async () => {
+    const pending = deferred<string>();
+    const onSuccess = vi.fn();
+    const { result, unmount } = renderHook(() =>
+      useServerMutation({ mutationFn: () => pending.promise, onSuccess }),
+    );
+    let request!: Promise<string>;
+    await act(async () => {
+      request = result.current.mutateAsync(undefined);
+    });
+    unmount();
+    pending.resolve("old suggestion");
+    await request;
+    expect(onSuccess).not.toHaveBeenCalled();
+  });
   test("remains pending until every concurrent mutation settles", async () => {
     const first = deferred<number>();
     const second = deferred<number>();

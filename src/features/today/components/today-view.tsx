@@ -44,6 +44,7 @@ import {
 import { useServerMutation as useMutation } from "@/hooks/use-server-mutation";
 import { throwActionError } from "@/lib/action-error";
 import { readStoredValue, writeStoredValue } from "@/lib/browser-storage";
+import { localDateInTimeZone } from "@/lib/local-date";
 import { cn } from "@/lib/utils";
 import { refreshTodayTasksFn, updateTodayTaskFn } from "../actions";
 import {
@@ -86,9 +87,11 @@ function boundedMinutes(seconds: number) {
 export function TodayView({
   initialData,
   userId,
+  timezone = "UTC",
 }: {
   initialData: TodayTasks;
   userId: number;
+  timezone?: string;
 }) {
   const [data, setData] = useState(initialData);
   const tasks = data.tasks;
@@ -110,10 +113,19 @@ export function TodayView({
   const continueInFlightRef = useRef<number | null>(null);
   const timerKey = timerStorageKey(userId, data.date);
   const autoCompleteKey = autoCompleteStorageKey(userId);
+  const snapshotDateRef = useRef(initialData.date);
 
   useEffect(() => {
+    if (snapshotDateRef.current !== initialData.date) {
+      writeStoredValue(timerStorageKey(userId, snapshotDateRef.current), null);
+      setTimer(null);
+      setTimerReady(false);
+      setCompletionNotice(undefined);
+      completionInFlightRef.current = null;
+      snapshotDateRef.current = initialData.date;
+    }
     setData(initialData);
-  }, [initialData]);
+  }, [initialData, userId]);
 
   const updateTask = useMutation({
     mutationFn: async ({
@@ -126,7 +138,12 @@ export function TodayView({
       durationMinutes: number;
     }) => {
       const result = await updateTodayTaskFn({
-        data: { taskId: task.id, status, durationMinutes },
+        data: {
+          taskId: task.id,
+          status,
+          durationMinutes,
+          expectedDate: data.date,
+        },
       });
       if (!result.ok) throwActionError(result.error);
       return result.data;
@@ -164,6 +181,15 @@ export function TodayView({
       const result = await refreshTodayTasksFn();
       if (!result.ok) throwActionError(result.error);
       return result.data;
+    },
+    onSuccess: (snapshot) => {
+      if (snapshot.date !== data.date) {
+        writeStoredValue(timerKey, null);
+        setTimer(null);
+        setCompletionNotice(undefined);
+        completionInFlightRef.current = null;
+      }
+      setData(snapshot);
     },
   });
 
@@ -288,6 +314,28 @@ export function TodayView({
   }, []);
 
   useEffect(() => {
+    const reconcile = () => {
+      if (
+        document.visibilityState !== "hidden" &&
+        !updateTask.isPending &&
+        !refreshToday.isPending
+      )
+        refreshToday.mutate();
+    };
+    const checkDate = () => {
+      if (localDateInTimeZone(timezone) !== data.date) reconcile();
+    };
+    document.addEventListener("visibilitychange", reconcile);
+    window.addEventListener("pageshow", reconcile);
+    const interval = window.setInterval(checkDate, 60_000);
+    return () => {
+      document.removeEventListener("visibilitychange", reconcile);
+      window.removeEventListener("pageshow", reconcile);
+      window.clearInterval(interval);
+    };
+  }, [data.date, timezone, refreshToday, updateTask.isPending]);
+
+  useEffect(() => {
     if (
       !showFiveMinuteWarning ||
       !timer ||
@@ -312,7 +360,14 @@ export function TodayView({
   }, [activeTask, showFiveMinuteWarning, timer]);
 
   useEffect(() => {
-    if (!timer || !activeTask || !autoCompleteReady || remainingSeconds > 0) {
+    if (
+      !timer ||
+      !activeTask ||
+      !autoCompleteReady ||
+      remainingSeconds > 0 ||
+      refreshToday.isPending ||
+      document.visibilityState === "hidden"
+    ) {
       return;
     }
 
@@ -366,6 +421,7 @@ export function TodayView({
     targetSeconds,
     timer,
     updateTask,
+    refreshToday.isPending,
   ]);
 
   async function changeStatus(

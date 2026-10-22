@@ -21,10 +21,11 @@ import {
   UsersIcon,
 } from "lucide-react";
 import type { Route } from "next";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   type ComponentType,
   type ReactNode,
+  useEffect,
   useState,
   useTransition,
 } from "react";
@@ -483,6 +484,18 @@ type AppShellProps = AccountProps & { children: ReactNode };
 
 export function AppShell({ children, ...account }: AppShellProps) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const router = useRouter();
+  useEffect(() => {
+    const validateSession = () => {
+      if (document.visibilityState === "visible") router.refresh();
+    };
+    document.addEventListener("visibilitychange", validateSession);
+    window.addEventListener("pageshow", validateSession);
+    return () => {
+      document.removeEventListener("visibilitychange", validateSession);
+      window.removeEventListener("pageshow", validateSession);
+    };
+  }, [router]);
 
   return (
     <>

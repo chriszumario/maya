@@ -21,6 +21,7 @@ import {
   Trash2Icon,
 } from "lucide-react";
 import { useState } from "react";
+import { AiSuggestion } from "@/components/shared/ai-suggestion";
 import { CursorPagination } from "@/components/shared/cursor-pagination";
 import { PageHeader } from "@/components/shared/page-header";
 import {
@@ -211,6 +212,10 @@ export function JournalView({
     () => todayEntry ?? entries[0] ?? null,
   );
   const [deleteOpen, setDeleteOpen] = useState(false);
+  const [suggestion, setSuggestion] = useState<{
+    field: JournalAiField;
+    text: string;
+  }>();
   const journalForm = useForm({
     schema: JournalFormSchema,
     initialInput: journalFormInput(selectedEntry, today),
@@ -230,11 +235,13 @@ export function JournalView({
       if (!result.ok) throwActionError(result.error);
       return result.data;
     },
-    onSuccess: ({ field, text }) => {
-      setInput(journalForm, {
-        path: [field] as [JournalAiField],
-        input: text,
-      });
+    onSuccess: (result, request) => {
+      if (
+        result.field === request.field &&
+        getInput(journalForm, { path: [request.field] })?.trim() ===
+          request.text
+      )
+        setSuggestion(result);
     },
   });
 
@@ -254,6 +261,8 @@ export function JournalView({
   const handleSubmit: SubmitHandler<typeof JournalFormSchema> = async (
     output,
   ) => {
+    improveJournal.reset();
+    setSuggestion(undefined);
     setErrors(journalForm, { errors: null });
     const { localDate: _localDate, ...fields } = output;
     const result = selectedEntry
@@ -274,23 +283,22 @@ export function JournalView({
     setSelectedEntry(entry);
     reset(journalForm, { initialInput: journalFormInput(entry, today) });
     improveJournal.reset();
+    setSuggestion(undefined);
   }
 
   function startEntry() {
     if (journalForm.isSubmitting || improveJournal.isPending) return;
-    if (todayEntry) {
-      selectEntry(todayEntry);
-      return;
-    }
     setSelectedEntry(null);
     reset(journalForm, { initialInput: journalFormInput(null, today) });
     improveJournal.reset();
+    setSuggestion(undefined);
   }
 
   function improveField(field: JournalAiField, value: string) {
     const normalized = value.trim();
     improveJournal.reset();
     setErrors(journalForm, { path: [field] as [JournalAiField], errors: null });
+    setSuggestion(undefined);
     if (!normalized || normalized.length > 2_000) {
       setErrors(journalForm, {
         path: [field] as [JournalAiField],
@@ -442,7 +450,14 @@ export function JournalView({
             ) : null}
           </CardHeader>
           <CardContent>
-            <Form of={journalForm} onSubmit={handleSubmit}>
+            <Form
+              of={journalForm}
+              onSubmit={handleSubmit}
+              onInput={() => {
+                improveJournal.reset();
+                setSuggestion(undefined);
+              }}
+            >
               <FieldGroup>
                 <FormischField of={journalForm} path={["localDate"]}>
                   {(field) => (
@@ -609,6 +624,19 @@ export function JournalView({
                     />
                   ))}
                 </FieldGroup>
+                {suggestion ? (
+                  <AiSuggestion
+                    text={suggestion.text}
+                    onAccept={() => {
+                      setInput(journalForm, {
+                        path: [suggestion.field],
+                        input: suggestion.text,
+                      });
+                      setSuggestion(undefined);
+                    }}
+                    onDismiss={() => setSuggestion(undefined)}
+                  />
+                ) : null}
                 <FieldError>{journalForm.errors?.[0]}</FieldError>
               </FieldGroup>
             </Form>

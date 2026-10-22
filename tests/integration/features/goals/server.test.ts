@@ -15,7 +15,12 @@ vi.mock("next/headers", () => ({
   }),
 }));
 
-import { createTaskFn, getGoalsFn } from "@/features/goals/server";
+import {
+  createTaskFn,
+  getGoalReviewsFn,
+  getGoalsFn,
+  getGoalTasksFn,
+} from "@/features/goals/server";
 
 beforeEach(() => {
   cookie.value = encodeSession({
@@ -29,11 +34,33 @@ beforeEach(() => {
       timezone: "UTC",
     },
   });
-  vi.stubEnv("API_URL", "https://maya.test/api");
+  vi.stubEnv("API_URL", "https://maya.test");
   vi.stubGlobal("fetch", vi.fn());
 });
 
 describe("goals server functions", () => {
+  test.each([
+    ["tasks", getGoalTasksFn],
+    ["reviews", getGoalReviewsFn],
+  ] as const)(
+    "paginates %s with an opaque encoded cursor",
+    async (resource, operation) => {
+      vi.mocked(fetch).mockResolvedValue(
+        new Response(JSON.stringify({ items: [], nextCursor: "next-page" })),
+      );
+      const result = await operation({
+        data: { goalId: 7, limit: 20, cursor: "opaque+/=cursor" },
+      });
+      expect(result).toMatchObject({
+        ok: true,
+        data: { items: [], nextCursor: "next-page" },
+      });
+      expect(fetch).toHaveBeenCalledWith(
+        `https://maya.test/goals/7/${resource}?limit=20&cursor=opaque%2B%2F%3Dcursor`,
+        expect.anything(),
+      );
+    },
+  );
   test("forwards the cursor and validates the page response", async () => {
     vi.mocked(fetch).mockResolvedValue(
       new Response(JSON.stringify({ items: [], nextCursor: "cursor-2" }), {
@@ -50,7 +77,7 @@ describe("goals server functions", () => {
       data: { items: [], nextCursor: "cursor-2" },
     });
     expect(vi.mocked(fetch).mock.calls[0]?.[0]).toBe(
-      "https://maya.test/api/goals?limit=20&cursor=cursor-1",
+      "https://maya.test/goals?limit=20&cursor=cursor-1",
     );
   });
 
@@ -86,7 +113,7 @@ describe("goals server functions", () => {
 
     expect(result).toEqual({ ok: true, data: task });
     expect(vi.mocked(fetch).mock.calls[0]?.[0]).toBe(
-      "https://maya.test/api/goals/1/tasks",
+      "https://maya.test/goals/1/tasks",
     );
     expect(
       JSON.parse(String(vi.mocked(fetch).mock.calls[0]?.[1]?.body)),

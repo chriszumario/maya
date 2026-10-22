@@ -12,7 +12,7 @@ Aplicación web de seguimiento de metas, agenda, diario y nutrición. Usa Next.j
 
 Crea `.env` a partir de `.env.example` y configura:
 
-- `API_URL`: URL base de Maya API. En producción debe usar HTTPS, salvo loopback.
+- `API_URL`: origen de Maya API, sin `/api`, `/v1` ni otros prefijos de ruta (por defecto `http://localhost:4000`). En producción debe usar HTTPS, salvo loopback.
 - `SESSION_SECRET`: secreto aleatorio por entorno de al menos 32 caracteres. Los valores de ejemplo son rechazados en producción.
 
 La sesión se guarda en una cookie cifrada, `HttpOnly`, `SameSite=Lax` y `Secure` en producción. Cambiar `SESSION_SECRET` invalida las sesiones existentes.
@@ -56,6 +56,14 @@ Server Components son el valor predeterminado. Los módulos con `"use client"` s
 
 Las colecciones grandes usan paginación por cursor en la URL y nunca se serializan completas al cliente. Los conteos y filtros locales se identifican como pertenecientes a la página actual.
 
-La renovación de sesión ocurre exclusivamente en Proxy para que la nueva cookie pueda persistirse. Cada renovación envía `base64url(SHA-256(refreshToken))` como `Idempotency-Key`; Maya API debe implementar una ventana idempotente transaccional para garantizar concurrencia entre múltiples instancias.
+El contrato de integración está documentado en [`maya-api.md`](maya-api.md). Proxy valida `/auth/me` antes de continuar, incluso con un JWT no caducado, y renueva una sola vez si recibe `401 UNAUTHORIZED` o `INVALID_TOKEN`. La renovación ocurre exclusivamente allí para persistir ambos tokens y el perfil en la cookie. Cada renovación envía `base64url(SHA-256(refreshToken))` como `Idempotency-Key`; Maya API conserva el replay durante 10 segundos. Los fallos temporales no borran la sesión. Al volver al primer plano se revalida la pantalla.
+
+El perfil envía únicamente campos modificados; cambiar el correo exige la contraseña actual. La zona IANA es editable y determina las fechas de agenda y registros. Las ejecuciones rechazadas por cambio de día deben reconciliarse, no reproducirse como actividad del día nuevo. El diario permite varias entradas por fecha. Tareas y revisiones disponen de paginación sin depender de los límites del detalle de meta.
+
+Las sugerencias de IA se previsualizan antes de aplicarse y guardar; una edición descarta la respuesta pendiente. Su timeout HTTP es de 20 segundos, con margen sobre los 15 del proveedor. Las calorías son el total de la cantidad enviada, nunca un valor a multiplicar de nuevo.
+
+Las invalidaciones del cliente no eliminan la caché interna de Maya API: las tendencias pueden tardar hasta 60 segundos y las estadísticas administrativas hasta 30 segundos en reflejar cambios. No se usa polling para forzar esos agregados. Los errores conservan `requestId` y `retryAfter` (segundos) cuando están disponibles, sin mostrar mensajes internos de la API.
+
+Si una renovación queda incierta tras el reintento acotado, la cookie se marca para impedir reproducciones posteriores del token consumido y se solicita iniciar sesión; no se afirma que el servidor la haya revocado. Si la rotación sí se confirma pero falla la consulta posterior del perfil, el par sucesor se conserva para no perder la sesión.
 
 React Compiler está habilitado mediante la opción estable `reactCompiler: true` y `babel-plugin-react-compiler`. No se requiere memoización manual por defecto.

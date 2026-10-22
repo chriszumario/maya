@@ -18,13 +18,10 @@ export async function updateTodayTaskFn(
   if (!result.ok) return result;
 
   updateTag(cacheTags.today);
+  updateTag(cacheTags.dashboard);
+  updateTag(cacheTags.insights);
+  updateTag(cacheTags.trends);
   const refreshedToday = await getTodayTasks();
-
-  if (refreshedToday.ok) {
-    updateTag(cacheTags.dashboard);
-    updateTag(cacheTags.insights);
-    updateTag(cacheTags.trends);
-  }
 
   return {
     ok: true as const,

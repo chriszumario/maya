@@ -74,6 +74,7 @@ import {
 } from "@/components/ui/table";
 import { useServerMutation as useMutation } from "@/hooks/use-server-mutation";
 import { throwActionError } from "@/lib/action-error";
+import { parseApiTimestamp } from "@/lib/local-date";
 import { setAdminFn } from "../actions";
 import type { AdminUser } from "../schemas";
 
@@ -290,7 +291,9 @@ export function AdminUsersView({
                         )}
                       </TableCell>
                       <TableCell className="text-muted-foreground">
-                        {new Date(user.createdAt).toLocaleDateString("es-BO")}
+                        {parseApiTimestamp(user.createdAt).toLocaleDateString(
+                          "es-BO",
+                        )}
                       </TableCell>
                       <TableCell>
                         <DropdownMenu>

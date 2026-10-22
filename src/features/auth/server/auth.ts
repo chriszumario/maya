@@ -18,7 +18,12 @@ const RegisterResponseSchema = v.object({
 
 function toAuthError(error: unknown) {
   if (error instanceof ApiClientError) {
-    return { code: error.code, message: error.message };
+    return {
+      code: error.code,
+      message: error.message,
+      requestId: error.requestId,
+      retryAfter: error.retryAfter,
+    };
   }
   return {
     code: "UNEXPECTED_ERROR",
@@ -37,7 +42,7 @@ export const loginFn = validatedOperation(
       });
       const authSession: AuthSession = v.parse(AuthSessionSchema, response);
       const session = await getAppSession();
-      await session.update(authSession);
+      await session.update({ ...authSession, refreshBlocked: false });
       return { ok: true, data: authSession.user };
     } catch (error) {
       return { ok: false, error: toAuthError(error) };

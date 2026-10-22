@@ -24,7 +24,7 @@ export default defineConfig({
       url: `${baseURL}/pending-approval`,
       reuseExistingServer: false,
       env: {
-        API_URL: "http://127.0.0.1:4012/api",
+        API_URL: "http://127.0.0.1:4012",
         SESSION_SECRET: "maya-e2e-only-secret-never-use-in-production-2026",
       },
       timeout: 30_000,

@@ -13,7 +13,11 @@ type WorkspaceLayoutProps = { children: ReactNode };
 async function AuthenticatedWorkspace({ children }: WorkspaceLayoutProps) {
   const user = await readSessionUser();
   if (!user) redirect("/login");
-  return <AppShell user={user}>{children}</AppShell>;
+  return (
+    <AppShell key={user.id} user={user}>
+      {children}
+    </AppShell>
+  );
 }
 
 function WorkspaceShellFallback() {

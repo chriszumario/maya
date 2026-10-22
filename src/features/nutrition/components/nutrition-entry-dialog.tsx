@@ -3,15 +3,17 @@
 import {
   Form,
   Field as FormischField,
+  getInput,
   reset,
   type SubmitHandler,
   setErrors,
   setInput,
   useForm,
-  validate,
 } from "@formisch/react";
 import { PlusIcon, SparklesIcon } from "lucide-react";
 import { useState } from "react";
+import * as v from "valibot";
+import { AiSuggestion } from "@/components/shared/ai-suggestion";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -53,6 +55,7 @@ import {
 } from "../actions";
 import { meals } from "../model/nutrition";
 import {
+  EstimateCaloriesInputSchema,
   type MealType,
   type NutritionEntry,
   NutritionFormSchema,
@@ -68,6 +71,7 @@ export function NutritionEntryDialog({
   trigger,
 }: NutritionEntryDialogProps) {
   const [open, setOpen] = useState(false);
+  const [suggestion, setSuggestion] = useState<number>();
   const initialInput = {
     mealType: entry?.mealType ?? ("lunch" as const),
     name: entry?.name ?? "",
@@ -91,7 +95,7 @@ export function NutritionEntryDialog({
       name: string;
       quantity: number;
       unit: string;
-      mealType?: MealType;
+      mealType?: string;
     }) => {
       const result = await estimateCaloriesFn({
         data: { name, quantity, unit, ...(mealType ? { mealType } : {}) },
@@ -100,22 +104,27 @@ export function NutritionEntryDialog({
       return result.data;
     },
     onSuccess: (result) => {
-      setInput(nutritionForm, {
-        path: ["calories"],
-        input: String(result.calories),
-      });
+      setSuggestion(result.calories);
     },
   });
 
   function clearEstimate() {
     estimateCalories.reset();
+    setSuggestion(undefined);
     setInput(nutritionForm, { path: ["calories"], input: "" });
   }
 
   async function handleEstimate() {
     setErrors(nutritionForm, { errors: null });
-    const result = await validate(nutritionForm, { shouldFocus: true });
-    if (!result.success) return;
+    const input = getInput(nutritionForm);
+    const result = v.safeParse(EstimateCaloriesInputSchema, {
+      ...input,
+      quantity: Number(input.quantity),
+    });
+    if (!result.success) {
+      setErrors(nutritionForm, { errors: [result.issues[0].message] });
+      return;
+    }
     estimateCalories.mutate({
       name: result.output.name,
       quantity: result.output.quantity,
@@ -157,6 +166,7 @@ export function NutritionEntryDialog({
         if (nextOpen) {
           reset(nutritionForm, { initialInput });
           estimateCalories.reset();
+          setSuggestion(undefined);
         }
       }}
     >
@@ -178,7 +188,14 @@ export function NutritionEntryDialog({
             con IA.
           </DialogDescription>
         </DialogHeader>
-        <Form of={nutritionForm} onSubmit={handleSubmit}>
+        <Form
+          of={nutritionForm}
+          onSubmit={handleSubmit}
+          onInput={() => {
+            estimateCalories.reset();
+            setSuggestion(undefined);
+          }}
+        >
           <FieldGroup>
             <FormischField of={nutritionForm} path={["mealType"]}>
               {(field) => (
@@ -349,6 +366,19 @@ export function NutritionEntryDialog({
               )}
             </FormischField>
 
+            {suggestion !== undefined ? (
+              <AiSuggestion
+                text={`${suggestion} kcal totales (estimación aproximada)`}
+                onAccept={() => {
+                  setInput(nutritionForm, {
+                    path: ["calories"],
+                    input: String(suggestion),
+                  });
+                  setSuggestion(undefined);
+                }}
+                onDismiss={() => setSuggestion(undefined)}
+              />
+            ) : null}
             <FieldError>{nutritionForm.errors?.[0]}</FieldError>
           </FieldGroup>
           <DialogFooter className="mt-5">

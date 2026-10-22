@@ -20,6 +20,38 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
+test("does not carry a persisted timer into a new server date", async () => {
+  const initialData = {
+    date: "2026-10-20",
+    tasks: [
+      {
+        id: 1,
+        title: "Leer",
+        goalTitle: "Aprender",
+        estimatedMinutes: 30,
+        startTime: "09:00",
+        status: "in_progress" as const,
+        durationMinutes: 1,
+      },
+    ],
+  };
+  const { rerender } = render(
+    <TodayView userId={1} initialData={initialData} />,
+  );
+  expect(
+    window.localStorage.getItem("maya:today-timer:1:2026-10-20"),
+  ).not.toBeNull();
+  rerender(
+    <TodayView userId={1} initialData={{ date: "2026-10-21", tasks: [] }} />,
+  );
+  expect(
+    window.localStorage.getItem("maya:today-timer:1:2026-10-20"),
+  ).toBeNull();
+  expect(
+    window.localStorage.getItem("maya:today-timer:1:2026-10-21"),
+  ).toBeNull();
+});
+
 test("does not retry failed automatic completion until the user acts", async () => {
   vi.useFakeTimers();
   mocks.updateTodayTaskFn.mockResolvedValue({

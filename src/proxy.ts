@@ -1,5 +1,10 @@
 import { type NextRequest, NextResponse } from "next/server";
+import * as v from "valibot";
 
+import {
+  type AuthUser,
+  AuthUserSchema,
+} from "@/features/auth/schemas/auth.schema";
 import { refreshTokens } from "@/features/auth/server/refresh-tokens.server";
 import {
   decodeSession,
@@ -7,7 +12,7 @@ import {
   SESSION_COOKIE_NAME,
   sessionCookieOptions,
 } from "@/features/auth/server/session-codec";
-import { ApiClientError } from "@/lib/api-client.server";
+import { ApiClientError, apiFetch } from "@/lib/api-client.server";
 
 const REFRESH_WINDOW_SECONDS = 30;
 
@@ -52,14 +57,54 @@ export async function proxy(request: NextRequest) {
   const { accessToken, refreshToken, user } = session;
 
   if (!accessToken || !refreshToken || !user) return loginRedirect(request);
+  if (session.refreshBlocked)
+    return NextResponse.redirect(new URL("/auth/session-expired", request.url));
   const expiresAt = tokenExpiration(accessToken);
   if (!expiresAt) return loginRedirect(request);
   const now = Math.floor(Date.now() / 1000);
-  if (expiresAt > now + REFRESH_WINDOW_SECONDS) return NextResponse.next();
-
+  let tokens = { accessToken, refreshToken };
   try {
-    const tokens = await refreshTokens(refreshToken);
-    const encodedSession = encodeSession({ ...session, ...tokens });
+    let currentUser: AuthUser | undefined;
+    let revoked = false;
+    if (expiresAt > now + REFRESH_WINDOW_SECONDS) {
+      try {
+        currentUser = v.parse(
+          AuthUserSchema,
+          await apiFetch("/auth/me", { token: accessToken }),
+        );
+      } catch (error) {
+        if (
+          !(error instanceof ApiClientError) ||
+          error.status !== 401 ||
+          !["UNAUTHORIZED", "INVALID_TOKEN"].includes(error.code)
+        )
+          throw error;
+        revoked = true;
+      }
+    }
+    if (!currentUser) {
+      tokens = await refreshTokens(refreshToken, revoked);
+      try {
+        currentUser = v.parse(
+          AuthUserSchema,
+          await apiFetch("/auth/me", { token: tokens.accessToken }),
+        );
+      } catch (error) {
+        if (error instanceof ApiClientError && error.status === 401)
+          return loginRedirect(request);
+        throw error;
+      }
+    }
+    if (
+      tokens.accessToken === accessToken &&
+      JSON.stringify(currentUser) === JSON.stringify(user)
+    )
+      return NextResponse.next();
+    const encodedSession = encodeSession({
+      ...session,
+      ...tokens,
+      user: currentUser,
+    });
 
     const requestHeaders = new Headers(request.headers);
     request.cookies.set(SESSION_COOKIE_NAME, encodedSession);
@@ -81,14 +126,52 @@ export async function proxy(request: NextRequest) {
     ) {
       return loginRedirect(request);
     }
-    if (expiresAt > now) return NextResponse.next();
-    return new NextResponse(
-      "El servicio de autenticación no está disponible.",
+    if (
+      error instanceof ApiClientError &&
+      error.code === "REFRESH_OUTCOME_UNCERTAIN"
+    ) {
+      const response = NextResponse.redirect(
+        new URL("/auth/session-expired", request.url),
+      );
+      response.cookies.set(
+        SESSION_COOKIE_NAME,
+        encodeSession({ ...session, refreshBlocked: true }),
+        sessionCookieOptions,
+      );
+      return response;
+    }
+    const status =
+      error instanceof ApiClientError && [403, 429].includes(error.status)
+        ? error.status
+        : 503;
+    const response = new NextResponse(
+      status === 403
+        ? "No tienes permisos para acceder."
+        : "El servicio de autenticación no está disponible.",
       {
-        status: 503,
-        headers: { "Retry-After": "5" },
+        status,
+        headers:
+          status === 403
+            ? {}
+            : {
+                "Retry-After": String(
+                  error instanceof ApiClientError ? (error.retryAfter ?? 5) : 5,
+                ),
+              },
       },
     );
+    // A successful rotation must be persisted even if the subsequent profile
+    // validation fails temporarily; retaining the consumed token would revoke it.
+    if (
+      tokens.refreshToken !== refreshToken ||
+      tokens.accessToken !== accessToken
+    )
+      response.cookies.set(
+        SESSION_COOKIE_NAME,
+        encodeSession({ ...session, ...tokens }),
+        sessionCookieOptions,
+      );
+    return response;
   }
 }
 

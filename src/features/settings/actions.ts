@@ -14,6 +14,10 @@ export async function updateProfileAction(
   if (result.ok) {
     updateTag(cacheTags.dashboard);
     updateTag(cacheTags.today);
+    updateTag(cacheTags.insights);
+    updateTag(cacheTags.trends);
+    updateTag(cacheTags.nutrition);
+    updateTag(cacheTags.journal);
   }
   return result;
 }

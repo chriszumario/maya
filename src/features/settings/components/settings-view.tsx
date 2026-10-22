@@ -40,7 +40,12 @@ function ProfileForm({ user }: { user: AuthUser }) {
   const [saved, setSaved] = useState(false);
   const form = useForm({
     schema: ProfileFormSchema,
-    initialInput: { name: user.name, email: user.email, currentPassword: "" },
+    initialInput: {
+      name: user.name,
+      email: user.email,
+      timezone: user.timezone,
+      currentPassword: "",
+    },
     validate: "submit",
     revalidate: "input",
   });
@@ -67,6 +72,7 @@ function ProfileForm({ user }: { user: AuthUser }) {
       initialInput: {
         name: result.data.name,
         email: result.data.email,
+        timezone: result.data.timezone,
         currentPassword: "",
       },
     });
@@ -117,6 +123,26 @@ function ProfileForm({ user }: { user: AuthUser }) {
                     autoComplete="email"
                     aria-invalid={Boolean(field.errors)}
                   />
+                  <FieldError>{field.errors?.[0]}</FieldError>
+                </Field>
+              )}
+            </FormischField>
+            <FormischField of={form} path={["timezone"]}>
+              {(field) => (
+                <Field data-invalid={Boolean(field.errors)}>
+                  <FieldLabel htmlFor="profile-timezone">
+                    Zona horaria
+                  </FieldLabel>
+                  <Input
+                    {...field.props}
+                    id="profile-timezone"
+                    value={field.input ?? ""}
+                    placeholder="America/La_Paz"
+                    aria-invalid={Boolean(field.errors)}
+                  />
+                  <FieldDescription>
+                    Zona IANA usada para tu agenda y tus registros diarios.
+                  </FieldDescription>
                   <FieldError>{field.errors?.[0]}</FieldError>
                 </Field>
               )}

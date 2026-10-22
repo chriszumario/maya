@@ -194,7 +194,7 @@ export const ImproveGoalResponseSchema = v.pipe(
   ImproveGoalResponseBaseSchema,
   v.check(
     ({ field, text }) =>
-      text.trim().length > 0 &&
+      text.trim().length >= 3 &&
       text.length <= (field === "title" ? 200 : 4_000),
     "La respuesta de IA supera el límite del campo.",
   ),
@@ -319,6 +319,8 @@ export const GoalReviewsInputSchema = v.object({
   cursor: v.optional(CursorSchema),
 });
 export const GoalReviewsPageSchema = CursorPageSchema(GoalReviewSchema);
+export const GoalTasksInputSchema = GoalReviewsInputSchema;
+export const GoalTasksPageSchema = CursorPageSchema(GoalTaskSchema);
 
 export type Goal = v.InferOutput<typeof GoalSchema>;
 export type GoalDetail = v.InferOutput<typeof GoalDetailSchema>;

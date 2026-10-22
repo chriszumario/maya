@@ -11,7 +11,10 @@ import * as v from "valibot";
 import type { AuthTokens, AuthUser } from "../model/auth";
 import { AuthSessionSchema } from "../schemas/auth.schema";
 
-export type AppSessionData = Partial<AuthTokens> & { user?: AuthUser };
+export type AppSessionData = Partial<AuthTokens> & {
+  user?: AuthUser;
+  refreshBlocked?: boolean;
+};
 
 export const SESSION_COOKIE_NAME = "maya_session";
 export const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 30;
@@ -20,7 +23,10 @@ const IV_LENGTH = 12;
 const AUTH_TAG_LENGTH = 16;
 const SessionEnvelopeSchema = v.object({
   expiresAt: v.pipe(v.number(), v.integer()),
-  session: AuthSessionSchema,
+  session: v.object({
+    ...AuthSessionSchema.entries,
+    refreshBlocked: v.optional(v.boolean()),
+  }),
 });
 
 const DEVELOPMENT_SECRET = "maya-local-development-secret-change-me-2026";

@@ -1,4 +1,5 @@
 import * as v from "valibot";
+import { TimezoneSchema } from "@/features/auth/schemas/auth.schema";
 
 const PasswordSchema = v.pipe(
   v.string(),
@@ -7,6 +8,7 @@ const PasswordSchema = v.pipe(
 );
 
 export const ProfileFormSchema = v.object({
+  timezone: TimezoneSchema,
   name: v.pipe(
     v.string(),
     v.trim(),
@@ -40,6 +42,14 @@ export const PasswordFormSchema = v.pipe(
       v.maxLength(128, "La contraseña no puede superar 128 caracteres."),
     ),
   }),
+  v.forward(
+    v.partialCheck(
+      [["currentPassword"], ["newPassword"]],
+      (input) => input.currentPassword !== input.newPassword,
+      "La nueva contraseña debe ser diferente de la actual.",
+    ),
+    ["newPassword"],
+  ),
   v.forward(
     v.partialCheck(
       [["newPassword"], ["confirmPassword"]],

@@ -38,6 +38,7 @@ import {
 import { Spinner } from "@/components/ui/spinner";
 import { useServerMutation as useMutation } from "@/hooks/use-server-mutation";
 import { throwActionError } from "@/lib/action-error";
+import { parseApiTimestamp } from "@/lib/local-date";
 import { approveUserFn, rejectUserFn } from "../actions";
 import type { AdminUser } from "../schemas";
 
@@ -187,7 +188,9 @@ export function AdminPendingView({
                 <p className="flex items-center gap-2 text-xs text-muted-foreground">
                   <CalendarClockIcon aria-hidden="true" className="size-4" />
                   Solicitó acceso el{" "}
-                  {new Date(user.createdAt).toLocaleDateString("es-BO")}
+                  {parseApiTimestamp(user.createdAt).toLocaleDateString(
+                    "es-BO",
+                  )}
                 </p>
               </CardContent>
               <CardFooter className="gap-2 border-t">

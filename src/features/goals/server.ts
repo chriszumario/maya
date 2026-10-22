@@ -16,6 +16,8 @@ import {
   GoalReviewsPageSchema,
   GoalSchema,
   GoalTaskSchema,
+  GoalTasksInputSchema,
+  GoalTasksPageSchema,
   ImproveGoalInputSchema,
   SetTaskActiveInputSchema,
   TaskIdInputSchema,
@@ -125,6 +127,17 @@ export const getGoalReviewsFn = validatedOperation(
     }, "No se pudo obtener el historial de revisiones."),
 );
 
+export const getGoalTasksFn = validatedOperation(GoalTasksInputSchema, (data) =>
+  goalOperation(async () => {
+    const search = new URLSearchParams({ limit: String(data.limit) });
+    if (data.cursor) search.set("cursor", data.cursor);
+    const response = await authenticatedApiFetch(
+      `/goals/${data.goalId}/tasks?${search}`,
+    );
+    return v.parse(GoalTasksPageSchema, response);
+  }, "No se pudieron obtener las tareas de la meta."),
+);
+
 export const createGoalReviewFn = validatedOperation(
   CreateGoalReviewInputSchema,
   (data) =>
@@ -146,7 +159,9 @@ export const improveGoalFn = validatedOperation(
         method: "POST",
         body: JSON.stringify(data),
       });
-      return v.parse(ValidatedImproveGoalResponseSchema, response);
+      const improved = v.parse(ValidatedImproveGoalResponseSchema, response);
+      if (improved.field !== data.field) throw new Error("Unexpected AI field");
+      return improved;
     }, "No se pudo mejorar la redacción con IA."),
 );
 

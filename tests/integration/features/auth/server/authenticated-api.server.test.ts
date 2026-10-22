@@ -40,7 +40,7 @@ beforeEach(() => {
       timezone: "UTC",
     },
   });
-  vi.stubEnv("API_URL", "https://maya.test/api");
+  vi.stubEnv("API_URL", "https://maya.test");
   vi.stubGlobal("fetch", vi.fn());
 });
 

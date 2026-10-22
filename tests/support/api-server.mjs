@@ -14,7 +14,7 @@ createServer((request, response) => {
   const { pathname } = new URL(request.url, "http://127.0.0.1:4012");
   response.setHeader("Content-Type", "application/json");
   if (pathname === "/health") return response.end(JSON.stringify({ ok: true }));
-  if (pathname === "/api/auth/login" && request.method === "POST") {
+  if (pathname === "/auth/login" && request.method === "POST") {
     return response.end(
       JSON.stringify({
         accessToken: `${encode({ alg: "HS256", typ: "JWT" })}.${encode({ exp: Math.floor(Date.now() / 1000) + 3600 })}.test-signature`,
@@ -23,19 +23,19 @@ createServer((request, response) => {
       }),
     );
   }
-  if (!request.headers.authorization && pathname !== "/api/auth/logout") {
+  if (!request.headers.authorization && pathname !== "/auth/logout") {
     response.statusCode = 401;
     return response.end(
       JSON.stringify({
-        error: { code: "UNAUTHENTICATED", message: "Unauthorized" },
+        error: { code: "UNAUTHORIZED", message: "Unauthorized" },
       }),
     );
   }
-  if (pathname === "/api/auth/logout") {
-    response.statusCode = 204;
-    return response.end();
+  if (pathname === "/auth/logout") {
+    return response.end(JSON.stringify({ status: "logged_out" }));
   }
-  if (pathname === "/api/today/tasks") {
+  if (pathname === "/auth/me") return response.end(JSON.stringify(user));
+  if (pathname === "/today/tasks") {
     return response.end(
       JSON.stringify({
         date: new Date().toISOString().slice(0, 10),
@@ -43,7 +43,7 @@ createServer((request, response) => {
       }),
     );
   }
-  if (["/api/goals", "/api/nutrition", "/api/journal"].includes(pathname)) {
+  if (["/goals", "/nutrition", "/journal"].includes(pathname)) {
     return response.end(JSON.stringify({ items: [], nextCursor: null }));
   }
   response.statusCode = 503;

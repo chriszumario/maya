@@ -10,8 +10,44 @@ const json = (body: unknown) =>
   });
 
 describe("refresh token coordination", () => {
+  test("revalidates a cached replay after a security-version change", async () => {
+    vi.stubEnv("API_URL", "https://maya.test");
+    const token = "refresh-token-for-security-version-test-123456";
+    const successor = "successor-for-security-version-test-12345678";
+    const first = {
+      accessToken: testAccessToken(2_000_000_000),
+      refreshToken: successor,
+    };
+    const reissued = {
+      accessToken: testAccessToken(2_000_001_800),
+      refreshToken: successor,
+    };
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(json(first))
+      .mockResolvedValueOnce(json(reissued));
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(refreshTokens(token)).resolves.toEqual(first);
+    await expect(refreshTokens(token, true)).resolves.toEqual(reissued);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[0][1].body).toBe(
+      fetchMock.mock.calls[1][1].body,
+    );
+  });
+
+  test("treats a malformed successful rotation as uncertain instead of retrying later", async () => {
+    vi.stubEnv("API_URL", "https://maya.test");
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(json({ accessToken: "invalid" }));
+    vi.stubGlobal("fetch", fetchMock);
+    await expect(
+      refreshTokens("malformed-response-refresh-token-123456789"),
+    ).rejects.toMatchObject({ code: "REFRESH_OUTCOME_UNCERTAIN" });
+    expect(fetchMock).toHaveBeenCalledOnce();
+  });
   test("shares concurrent work and sends a stable idempotency key", async () => {
-    vi.stubEnv("API_URL", "https://maya.test/api");
+    vi.stubEnv("API_URL", "https://maya.test");
     const fetchMock = vi.fn().mockResolvedValue(
       json({
         accessToken: testAccessToken(),
@@ -37,7 +73,7 @@ describe("refresh token coordination", () => {
 
   test("retries an in-progress rotation once with the same token and key", async () => {
     vi.useFakeTimers();
-    vi.stubEnv("API_URL", "https://maya.test/api");
+    vi.stubEnv("API_URL", "https://maya.test");
     const refreshToken = "retry-refresh-token-with-valid-length-123456789";
     const tokens = {
       accessToken: testAccessToken(),
@@ -74,7 +110,7 @@ describe("refresh token coordination", () => {
 
   test("retries a lost response within the replay window", async () => {
     vi.useFakeTimers();
-    vi.stubEnv("API_URL", "https://maya.test/api");
+    vi.stubEnv("API_URL", "https://maya.test");
     const refreshToken = "lost-response-refresh-token-with-valid-length-123";
     const tokens = {
       accessToken: testAccessToken(),
@@ -109,7 +145,7 @@ describe("refresh token coordination", () => {
 
   test("does not retry after the safe replay deadline", async () => {
     vi.useFakeTimers();
-    vi.stubEnv("API_URL", "https://maya.test/api");
+    vi.stubEnv("API_URL", "https://maya.test");
     const fetchMock = vi.fn(
       () =>
         new Promise<Response>((_resolve, reject) => {
@@ -122,7 +158,7 @@ describe("refresh token coordination", () => {
       "late-failure-refresh-token-with-valid-length-123456",
     );
     const rejection = expect(result).rejects.toMatchObject({
-      code: "NETWORK_ERROR",
+      code: "REFRESH_OUTCOME_UNCERTAIN",
     });
     await vi.advanceTimersByTimeAsync(9_500);
 
@@ -132,7 +168,7 @@ describe("refresh token coordination", () => {
   });
 
   test("does not retry terminal refresh errors", async () => {
-    vi.stubEnv("API_URL", "https://maya.test/api");
+    vi.stubEnv("API_URL", "https://maya.test");
     const fetchMock = vi.fn().mockResolvedValue(
       new Response(
         JSON.stringify({

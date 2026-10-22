@@ -18,6 +18,15 @@ const REFRESH_REQUEST_TIMEOUT_MS = 7_000;
 const REFRESH_RETRY_DEADLINE_MS = 9_500;
 const refreshes = new Map<string, RefreshEntry>();
 
+function uncertainRefresh() {
+  return new ApiClientError({
+    code: "REFRESH_OUTCOME_UNCERTAIN",
+    message:
+      "No se pudo confirmar la renovación. Inicia sesión nuevamente por seguridad.",
+    status: 503,
+  });
+}
+
 function idempotencyKey(refreshToken: string) {
   return createHash("sha256").update(refreshToken, "utf8").digest("base64url");
 }
@@ -34,7 +43,11 @@ async function requestTokens(refreshToken: string, key: string) {
       signal: AbortSignal.timeout(
         Math.min(REFRESH_REQUEST_TIMEOUT_MS, remainingMs),
       ),
-    }).then((response) => v.parse(AuthTokensSchema, response));
+    }).then((response) => {
+      const parsed = v.safeParse(AuthTokensSchema, response);
+      if (!parsed.success) throw uncertainRefresh();
+      return parsed.output;
+    });
   };
 
   try {
@@ -46,9 +59,23 @@ async function requestTokens(refreshToken: string, key: string) {
     ) {
       throw error;
     }
-    if (Date.now() + REFRESH_RETRY_DELAY_MS >= deadline) throw error;
+    if (Date.now() + REFRESH_RETRY_DELAY_MS >= deadline)
+      throw uncertainRefresh();
     await new Promise((resolve) => setTimeout(resolve, REFRESH_RETRY_DELAY_MS));
-    return request();
+    try {
+      return await request();
+    } catch (retryError) {
+      // Once a response may have been lost, never replay this token later from
+      // a new request after the server's ten-second recovery window.
+      if (
+        retryError instanceof ApiClientError &&
+        ["INVALID_REFRESH_TOKEN", "REFRESH_TOKEN_REUSE"].includes(
+          retryError.code,
+        )
+      )
+        throw retryError;
+      throw uncertainRefresh();
+    }
   }
 }
 
@@ -58,10 +85,17 @@ function removeExpiredRefreshes(now: number) {
   }
 }
 
-export async function refreshTokens(refreshToken: string): Promise<AuthTokens> {
+export async function refreshTokens(
+  refreshToken: string,
+  revalidate = false,
+): Promise<AuthTokens> {
   const now = Date.now();
   removeExpiredRefreshes(now);
   const key = idempotencyKey(refreshToken);
+  // A security-version change can invalidate a cached access JWT. Ask the API
+  // to reissue it through its replay contract, while still sharing in-flight work.
+  if (revalidate && refreshes.get(key)?.expiresAt !== Number.POSITIVE_INFINITY)
+    refreshes.delete(key);
 
   let entry = refreshes.get(key);
   if (!entry) {
@@ -75,7 +109,7 @@ export async function refreshTokens(refreshToken: string): Promise<AuthTokens> {
     newEntry.promise.then(
       () => {
         if (refreshes.get(key) === newEntry) {
-          newEntry.expiresAt = Date.now() + REFRESH_RESULT_TTL_MS;
+          newEntry.expiresAt = now + REFRESH_RETRY_DEADLINE_MS;
           setTimeout(() => {
             if (refreshes.get(key) === newEntry) {
               refreshes.delete(key);
@@ -87,9 +121,11 @@ export async function refreshTokens(refreshToken: string): Promise<AuthTokens> {
         if (refreshes.get(key) === newEntry) {
           if (
             error instanceof ApiClientError &&
-            ["INVALID_REFRESH_TOKEN", "REFRESH_TOKEN_REUSE"].includes(
-              error.code,
-            )
+            [
+              "INVALID_REFRESH_TOKEN",
+              "REFRESH_TOKEN_REUSE",
+              "REFRESH_OUTCOME_UNCERTAIN",
+            ].includes(error.code)
           ) {
             newEntry.expiresAt = Date.now() + REFRESH_RESULT_TTL_MS;
             setTimeout(() => {

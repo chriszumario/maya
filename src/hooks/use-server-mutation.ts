@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 type MutationOptions<TData, TVariables, TContext> = {
   mutationFn: (variables: TVariables) => Promise<TData>;
@@ -29,7 +29,15 @@ export function useServerMutation<TData, TVariables = void, TContext = unknown>(
   const [pendingCount, setPendingCount] = useState(0);
   const [error, setError] = useState<Error | null>(null);
   const [variables, setVariables] = useState<TVariables>();
+  const generation = useRef(0);
+  useEffect(
+    () => () => {
+      generation.current += 1;
+    },
+    [],
+  );
   async function mutateAsync(variables: TVariables) {
+    const startedGeneration = generation.current;
     setVariables(variables);
     setPendingCount((count) => count + 1);
     setError(null);
@@ -39,15 +47,18 @@ export function useServerMutation<TData, TVariables = void, TContext = unknown>(
     try {
       context = await options.onMutate?.(variables);
       data = await options.mutationFn(variables);
-      await options.onSuccess?.(data, variables, context);
+      if (generation.current === startedGeneration)
+        await options.onSuccess?.(data, variables, context);
       return data;
     } catch (cause) {
       caught =
         cause instanceof Error
           ? cause
           : new Error("No se pudo completar la operación.");
-      setError(caught);
-      await options.onError?.(caught, variables, context);
+      if (generation.current === startedGeneration) {
+        setError(caught);
+        await options.onError?.(caught, variables, context);
+      }
       throw caught;
     } finally {
       setPendingCount((count) => Math.max(0, count - 1));
@@ -65,6 +76,9 @@ export function useServerMutation<TData, TVariables = void, TContext = unknown>(
     isPending: pendingCount > 0,
     error,
     variables,
-    reset: () => setError(null),
+    reset: () => {
+      generation.current += 1;
+      setError(null);
+    },
   };
 }

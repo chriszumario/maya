@@ -2,11 +2,20 @@ import * as v from "valibot";
 import { describe, expect, test } from "vitest";
 
 import {
+  CaloriesEstimateSchema,
   EstimateCaloriesInputSchema,
   NutritionEntrySchema,
 } from "@/features/nutrition/schemas";
 
 describe("nutrition schemas", () => {
+  test.each([-1, 100001, 12.5])(
+    "rejects invalid AI calorie totals: %s",
+    (calories) => {
+      expect(v.safeParse(CaloriesEstimateSchema, { calories }).success).toBe(
+        false,
+      );
+    },
+  );
   test("accepts a nutrition entry", () => {
     const entry = {
       id: 1,

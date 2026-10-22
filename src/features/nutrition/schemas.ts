@@ -71,11 +71,10 @@ export const EstimateCaloriesInputSchema = v.object({
   name: RequiredNameSchema,
   quantity: v.pipe(v.number(), v.gtValue(0), v.maxValue(1_000_000)),
   unit: RequiredUnitInputSchema,
-  mealType: v.optional(MealTypeSchema),
+  mealType: v.optional(v.pipe(v.string(), v.maxLength(50))),
 });
-const NutrientSchema = v.pipe(v.number(), v.integer(), v.minValue(0));
 export const CaloriesEstimateSchema = v.object({
-  calories: NutrientSchema,
+  calories: CaloriesSchema,
 });
 
 export const NutritionEntrySchema = v.object({

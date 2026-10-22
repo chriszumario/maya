@@ -43,6 +43,7 @@ import {
 } from "@/components/ui/table";
 import { useServerMutation as useMutation } from "@/hooks/use-server-mutation";
 import { throwActionError } from "@/lib/action-error";
+import { parseApiTimestamp } from "@/lib/local-date";
 import { revokeUserSessionsFn } from "../actions";
 import type { ActiveSession, AdminUser } from "../schemas";
 
@@ -139,10 +140,14 @@ export function AdminUserDetailView({
                     {session.familyId}
                   </TableCell>
                   <TableCell>
-                    {new Date(session.createdAt).toLocaleString("es-BO")}
+                    {parseApiTimestamp(session.createdAt).toLocaleString(
+                      "es-BO",
+                    )}
                   </TableCell>
                   <TableCell>
-                    {new Date(session.expiresAt).toLocaleDateString("es-BO")}
+                    {parseApiTimestamp(session.expiresAt).toLocaleDateString(
+                      "es-BO",
+                    )}
                   </TableCell>
                   <TableCell>
                     <Badge variant="secondary">

@@ -12,11 +12,39 @@ vi.mock("@/features/today/server", () => ({
   updateTodayTaskFn: mocks.updateTodayTaskFn,
 }));
 
-import { refreshTodayTasksFn } from "@/features/today/actions";
+import {
+  refreshTodayTasksFn,
+  updateTodayTaskFn,
+} from "@/features/today/actions";
 
 beforeEach(() => vi.clearAllMocks());
 
 describe("today actions", () => {
+  test("invalidates all metrics even when the follow-up agenda read fails", async () => {
+    mocks.updateTodayTaskFn.mockResolvedValue({ ok: true, data: { id: 1 } });
+    mocks.getTodayTasksFn.mockResolvedValue({
+      ok: false,
+      error: { message: "temporary" },
+    });
+    const result = await updateTodayTaskFn({
+      data: {
+        taskId: 1,
+        status: "completed",
+        durationMinutes: 30,
+        expectedDate: "2026-10-20",
+      },
+    });
+    expect(result).toMatchObject({
+      ok: true,
+      data: { syncError: "temporary" },
+    });
+    expect(mocks.updateTag.mock.calls.map(([tag]) => tag)).toEqual([
+      "today",
+      "dashboard",
+      "insights",
+      "trends",
+    ]);
+  });
   test("fetches a fresh server snapshot before resuming a timer", async () => {
     const result = {
       ok: true as const,

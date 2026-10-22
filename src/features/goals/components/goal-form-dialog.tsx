@@ -12,6 +12,7 @@ import {
 } from "@formisch/react";
 import { SparklesIcon } from "lucide-react";
 import { useState } from "react";
+import { AiSuggestion } from "@/components/shared/ai-suggestion";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -82,6 +83,10 @@ type GoalFormDialogProps = {
 
 export function GoalFormDialog({ trigger, goal }: GoalFormDialogProps) {
   const [open, setOpen] = useState(false);
+  const [suggestion, setSuggestion] = useState<{
+    field: GoalAiField;
+    text: string;
+  }>();
   const goalForm = useForm({
     schema: CreateGoalSchema,
     initialInput: goalFormInput(goal),
@@ -108,15 +113,12 @@ export function GoalFormDialog({ trigger, goal }: GoalFormDialogProps) {
       if (!result.ok) throwActionError(result.error);
       return result.data;
     },
-    onSuccess: ({ field, text }) => {
-      if (field === "title") {
-        setInput(goalForm, { path: ["title"], input: text });
-      } else {
-        setInput(goalForm, {
-          path: ["motivation"],
-          input: text,
-        });
-      }
+    onSuccess: (result, request) => {
+      if (
+        result.field === request.field &&
+        getInput(goalForm, { path: [request.field] })?.trim() === request.text
+      )
+        setSuggestion(result);
     },
   });
 
@@ -135,6 +137,7 @@ export function GoalFormDialog({ trigger, goal }: GoalFormDialogProps) {
   function handleImprove(field: GoalAiField) {
     setErrors(goalForm, { errors: null });
     improveGoal.reset();
+    setSuggestion(undefined);
     const text = getInput(goalForm, { path: [field] })?.trim() ?? "";
     if (!text) {
       if (field === "title") {
@@ -177,6 +180,7 @@ export function GoalFormDialog({ trigger, goal }: GoalFormDialogProps) {
         reset(goalForm, { initialInput: goalFormInput(goal) });
         saveGoal.reset();
         improveGoal.reset();
+        setSuggestion(undefined);
         setOpen(nextOpen);
       }}
     >
@@ -188,7 +192,14 @@ export function GoalFormDialog({ trigger, goal }: GoalFormDialogProps) {
             Define el resultado, su motivación y la prioridad que tendrá.
           </DialogDescription>
         </DialogHeader>
-        <Form of={goalForm} onSubmit={handleSubmit}>
+        <Form
+          of={goalForm}
+          onSubmit={handleSubmit}
+          onInput={() => {
+            improveGoal.reset();
+            setSuggestion(undefined);
+          }}
+        >
           <FieldGroup>
             <FormischField of={goalForm} path={["title"]}>
               {(field) => (
@@ -314,6 +325,19 @@ export function GoalFormDialog({ trigger, goal }: GoalFormDialogProps) {
                 )}
               </FormischField>
             </div>
+            {suggestion ? (
+              <AiSuggestion
+                text={suggestion.text}
+                onAccept={() => {
+                  setInput(goalForm, {
+                    path: [suggestion.field],
+                    input: suggestion.text,
+                  });
+                  setSuggestion(undefined);
+                }}
+                onDismiss={() => setSuggestion(undefined)}
+              />
+            ) : null}
             <FieldError>
               {goalForm.errors?.[0] ??
                 (improveGoal.error instanceof Error
@@ -329,6 +353,7 @@ export function GoalFormDialog({ trigger, goal }: GoalFormDialogProps) {
                 reset(goalForm, { initialInput: goalFormInput(goal) });
                 saveGoal.reset();
                 improveGoal.reset();
+                setSuggestion(undefined);
                 setOpen(false);
               }}
             >

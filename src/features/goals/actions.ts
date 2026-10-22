@@ -105,6 +105,7 @@ export async function createTaskFn(
       cacheTags.goal(result.data.goalId),
       cacheTags.today,
       cacheTags.dashboard,
+      cacheTags.insights,
       cacheTags.trends,
     );
   }
@@ -119,6 +120,7 @@ export async function updateTaskFn(
       cacheTags.goal(result.data.goalId),
       cacheTags.today,
       cacheTags.dashboard,
+      cacheTags.insights,
       cacheTags.trends,
     );
   }
@@ -133,6 +135,7 @@ export async function setTaskActiveFn(
       cacheTags.goal(result.data.goalId),
       cacheTags.today,
       cacheTags.dashboard,
+      cacheTags.insights,
       cacheTags.trends,
     );
   }
@@ -147,6 +150,7 @@ const deleteTask = validatedOperation(
         cacheTags.goal(goalId),
         cacheTags.today,
         cacheTags.dashboard,
+        cacheTags.insights,
         cacheTags.trends,
       );
     }
@@ -159,7 +163,7 @@ export async function deleteTaskFn(input: Parameters<typeof deleteTask>[0]) {
 }
 const readGoalReviews = validatedOperation(
   GoalReviewsInputSchema,
-  ({ goalId, limit }) => getGoalReviews(goalId, limit),
+  ({ goalId, limit, cursor }) => getGoalReviews(goalId, limit, cursor),
 );
 
 export async function getGoalReviewsFn(

@@ -81,6 +81,7 @@ export const improveJournalFieldFn = validatedOperation(
         body: JSON.stringify(data),
       });
       const improved = v.parse(ValidatedImproveJournalResponseSchema, response);
+      if (improved.field !== data.field) throw new Error("Unexpected AI field");
       return improved;
     }, "No se pudo mejorar el texto con IA."),
 );

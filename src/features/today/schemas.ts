@@ -53,6 +53,7 @@ export const TodayTasksSchema = v.object({
 });
 
 export const UpdateTodayTaskInputSchema = v.object({
+  expectedDate: LocalDateSchema,
   taskId: IdSchema,
   status: TaskLogStatusSchema,
   durationMinutes: v.pipe(

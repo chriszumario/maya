@@ -9,11 +9,46 @@ const json = (body: unknown, status = 200) =>
   });
 
 beforeEach(() => {
-  vi.stubEnv("API_URL", "https://maya.test/api");
+  vi.stubEnv("API_URL", "https://maya.test");
   vi.stubGlobal("fetch", vi.fn());
 });
 
 describe("API client", () => {
+  test("uses the documented default origin without an API prefix", async () => {
+    vi.stubEnv("API_URL", undefined);
+    vi.mocked(fetch).mockResolvedValue(json({ ok: true }));
+    await apiFetch("/auth/me");
+    expect(fetch).toHaveBeenCalledWith(
+      "http://localhost:4000/auth/me",
+      expect.anything(),
+    );
+  });
+
+  test("retains request IDs and Retry-After seconds without exposing upstream text", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      new Response(
+        JSON.stringify({ error: { code: "RATE_LIMITED", message: "private" } }),
+        {
+          status: 429,
+          headers: { "X-Request-Id": "support-123", "Retry-After": "900" },
+        },
+      ),
+    );
+    await expect(apiFetch("/goals")).rejects.toMatchObject({
+      code: "RATE_LIMITED",
+      status: 429,
+      requestId: "support-123",
+      retryAfter: 900,
+    });
+    expect(fetch).toHaveBeenCalledOnce();
+  });
+
+  test("allows more than the provider's 15-second timeout for AI", async () => {
+    const timeout = vi.spyOn(AbortSignal, "timeout");
+    vi.mocked(fetch).mockResolvedValue(json({ calories: 300 }));
+    await apiFetch("/ai/estimate-calories", { method: "POST", body: "{}" });
+    expect(timeout).toHaveBeenCalledWith(20_000);
+  });
   test("sends auth and JSON headers", async () => {
     vi.mocked(fetch).mockResolvedValue(json({ ok: true }));
 
@@ -39,7 +74,7 @@ describe("API client", () => {
 
     await expect(apiFetch("/goals/1")).rejects.toMatchObject({
       code: "GOAL_TERMINAL",
-      message: "La operación entra en conflicto con el estado actual.",
+      message: "La meta ya está completada o cancelada. Recarga sus datos.",
       status: 409,
     });
   });
@@ -74,6 +109,8 @@ describe("API client", () => {
   });
 
   test.each([
+    "https://maya.test/api",
+    "https://maya.test/v1",
     "ftp://localhost/api",
     "https://user:password@maya.test/api",
     "https://maya.test/api?redirect=elsewhere",

@@ -9,7 +9,13 @@ export const metadata: Metadata = { title: "Mi día" };
 async function TodayContent() {
   const user = await readSessionUser();
   if (!user) redirect("/login");
-  return <TodayView userId={user.id} initialData={await getTodayTasks()} />;
+  return (
+    <TodayView
+      userId={user.id}
+      timezone={user.timezone}
+      initialData={await getTodayTasks()}
+    />
+  );
 }
 
 export default function TodayPage() {

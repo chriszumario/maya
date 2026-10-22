@@ -14,6 +14,7 @@ import {
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { CursorPagination } from "@/components/shared/cursor-pagination";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -96,7 +97,14 @@ function formatSchedule(task: GoalTask) {
   return `${schedule} · ${task.startTime} · ${task.estimatedMinutes} min`;
 }
 
-export function GoalDetailView({ goal }: { goal: GoalDetail }) {
+export function GoalDetailView({
+  goal,
+  tasksPage,
+}: {
+  goal: Omit<GoalDetail, "tasks">;
+  tasksPage: { items: GoalTask[]; nextCursor: string | null };
+}) {
+  const tasks = tasksPage.items;
   const goalId = goal.id;
   const router = useRouter();
   const [deleteGoalOpen, setDeleteGoalOpen] = useState(false);
@@ -260,12 +268,12 @@ export function GoalDetailView({ goal }: { goal: GoalDetail }) {
               </CardAction>
             </CardHeader>
             <CardContent className="flex flex-col">
-              {goal.tasks.length === 0 ? (
+              {tasks.length === 0 ? (
                 <p className="rounded-2xl border border-dashed p-6 text-center text-sm text-muted-foreground">
                   Todavía no agregaste tareas a esta meta.
                 </p>
               ) : (
-                goal.tasks.map((task, index) => (
+                tasks.map((task, index) => (
                   <div key={task.id}>
                     <div className="flex items-center gap-3 py-4">
                       <Switch
@@ -312,10 +320,11 @@ export function GoalDetailView({ goal }: { goal: GoalDetail }) {
                         <Trash2Icon />
                       </Button>
                     </div>
-                    {index < goal.tasks.length - 1 ? <Separator /> : null}
+                    {index < tasks.length - 1 ? <Separator /> : null}
                   </div>
                 ))
               )}
+              <CursorPagination nextCursor={tasksPage.nextCursor} />
             </CardContent>
           </Card>
           <Card>
@@ -373,15 +382,15 @@ export function GoalDetailView({ goal }: { goal: GoalDetail }) {
             <CardHeader>
               <CardTitle>Tareas</CardTitle>
               <CardDescription>
-                Resumen de la programación actual.
+                Resumen de las tareas de esta página.
               </CardDescription>
             </CardHeader>
             <CardContent>
               <p className="font-heading text-4xl font-semibold">
-                {goal.tasks.filter((task) => task.isActive).length}
+                {tasks.filter((task) => task.isActive).length}
               </p>
               <p className="mt-2 text-sm text-muted-foreground">
-                activas de {goal.tasks.length} tareas
+                activas de {tasks.length} tareas en esta página
               </p>
             </CardContent>
           </Card>

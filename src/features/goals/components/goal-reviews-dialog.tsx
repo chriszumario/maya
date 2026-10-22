@@ -2,6 +2,7 @@
 
 import { CalendarIcon } from "lucide-react";
 import { useState } from "react";
+import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -25,14 +26,26 @@ export function GoalReviewsDialog({
   const [reviews, setReviews] = useState<GoalReview[]>();
   const [error, setError] = useState<string>();
   const [isLoading, setIsLoading] = useState(false);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [history, setHistory] = useState<string[]>([]);
 
-  async function loadReviews() {
+  async function loadReviews(cursors: string[] = []) {
     setIsLoading(true);
     setError(undefined);
-    const result = await getGoalReviewsFn({ data: { goalId, limit: 100 } });
-    if (result.ok) setReviews(result.data);
-    else setError(result.error.message);
-    setIsLoading(false);
+    try {
+      const result = await getGoalReviewsFn({
+        data: { goalId, limit: 20, cursor: cursors.at(-1) },
+      });
+      if (result.ok) {
+        setReviews(result.data.items);
+        setNextCursor(result.data.nextCursor);
+        setHistory(cursors);
+      } else setError(result.error.message);
+    } catch {
+      setError("No se pudieron obtener las revisiones.");
+    } finally {
+      setIsLoading(false);
+    }
   }
 
   function handleOpenChange(nextOpen: boolean) {
@@ -49,7 +62,7 @@ export function GoalReviewsDialog({
         <DialogHeader>
           <DialogTitle>Historial de revisiones</DialogTitle>
           <DialogDescription>
-            Consulta hasta las últimas 100 revisiones de la meta.
+            Consulta las revisiones de la meta, 20 por página.
           </DialogDescription>
         </DialogHeader>
         {error ? (
@@ -94,6 +107,24 @@ export function GoalReviewsDialog({
             ))}
           </div>
         )}
+        <div className="flex justify-between gap-3">
+          <Button
+            variant="outline"
+            disabled={isLoading || history.length === 0}
+            onClick={() => void loadReviews(history.slice(0, -1))}
+          >
+            Anterior
+          </Button>
+          <Button
+            variant="outline"
+            disabled={isLoading || !nextCursor}
+            onClick={() => {
+              if (nextCursor) void loadReviews([...history, nextCursor]);
+            }}
+          >
+            Siguiente
+          </Button>
+        </div>
       </DialogContent>
     </Dialog>
   );

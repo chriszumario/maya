@@ -1,11 +1,21 @@
 import { notFound } from "next/navigation";
 import { GoalDetailView } from "@/features/goals/components/goal-detail-view";
-import { getGoal } from "@/features/goals/queries";
+import { getGoal, getGoalTasks } from "@/features/goals/queries";
+import { readCursorHistory } from "@/lib/cursor-navigation";
 
-async function GoalContent({ params }: PageProps<"/goals/[goalId]">) {
+async function GoalContent({
+  params,
+  searchParams,
+}: PageProps<"/goals/[goalId]">) {
   const id = Number((await params).goalId);
   if (!Number.isInteger(id) || id < 1) notFound();
-  return <GoalDetailView goal={await getGoal(id)} />;
+  const cursor = readCursorHistory((await searchParams).cursor).at(-1);
+  const [goal, tasksPage] = await Promise.all([
+    getGoal(id),
+    getGoalTasks(id, cursor),
+  ]);
+  const { tasks: _embeddedTasks, ...details } = goal;
+  return <GoalDetailView goal={details} tasksPage={tasksPage} />;
 }
 
 export default function GoalPage(props: PageProps<"/goals/[goalId]">) {
