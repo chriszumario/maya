@@ -101,11 +101,14 @@ function ProfileForm({ user }: { user: AuthUser }) {
                   <Input
                     {...field.props}
                     id="profile-name"
+                    aria-describedby="profile-name-error"
                     value={field.input ?? ""}
                     autoComplete="name"
                     aria-invalid={Boolean(field.errors)}
                   />
-                  <FieldError>{field.errors?.[0]}</FieldError>
+                  <FieldError id="profile-name-error">
+                    {field.errors?.[0]}
+                  </FieldError>
                 </Field>
               )}
             </FormischField>
@@ -118,12 +121,15 @@ function ProfileForm({ user }: { user: AuthUser }) {
                   <Input
                     {...field.props}
                     id="profile-email"
+                    aria-describedby="profile-email-error"
                     type="email"
                     value={field.input ?? ""}
                     autoComplete="email"
                     aria-invalid={Boolean(field.errors)}
                   />
-                  <FieldError>{field.errors?.[0]}</FieldError>
+                  <FieldError id="profile-email-error">
+                    {field.errors?.[0]}
+                  </FieldError>
                 </Field>
               )}
             </FormischField>
@@ -136,14 +142,17 @@ function ProfileForm({ user }: { user: AuthUser }) {
                   <Input
                     {...field.props}
                     id="profile-timezone"
+                    aria-describedby="profile-timezone-description profile-timezone-error"
                     value={field.input ?? ""}
                     placeholder="America/La_Paz"
                     aria-invalid={Boolean(field.errors)}
                   />
-                  <FieldDescription>
+                  <FieldDescription id="profile-timezone-description">
                     Zona IANA usada para tu agenda y tus registros diarios.
                   </FieldDescription>
-                  <FieldError>{field.errors?.[0]}</FieldError>
+                  <FieldError id="profile-timezone-error">
+                    {field.errors?.[0]}
+                  </FieldError>
                 </Field>
               )}
             </FormischField>
@@ -156,15 +165,18 @@ function ProfileForm({ user }: { user: AuthUser }) {
                   <Input
                     {...field.props}
                     id="profile-password"
+                    aria-describedby="profile-password-description profile-password-error"
                     type="password"
                     value={field.input ?? ""}
                     autoComplete="current-password"
                     aria-invalid={Boolean(field.errors)}
                   />
-                  <FieldDescription>
+                  <FieldDescription id="profile-password-description">
                     Sólo es necesaria para cambiar el correo.
                   </FieldDescription>
-                  <FieldError>{field.errors?.[0]}</FieldError>
+                  <FieldError id="profile-password-error">
+                    {field.errors?.[0]}
+                  </FieldError>
                 </Field>
               )}
             </FormischField>
@@ -246,17 +258,24 @@ function PasswordForm() {
                     <Input
                       {...field.props}
                       id={path}
+                      aria-describedby={
+                        path === "newPassword"
+                          ? `${path}-description ${path}-error`
+                          : `${path}-error`
+                      }
                       type="password"
                       value={field.input ?? ""}
                       autoComplete={autoComplete}
                       aria-invalid={Boolean(field.errors)}
                     />
                     {path === "newPassword" ? (
-                      <FieldDescription>
+                      <FieldDescription id={`${path}-description`}>
                         Entre 12 y 128 caracteres.
                       </FieldDescription>
                     ) : null}
-                    <FieldError>{field.errors?.[0]}</FieldError>
+                    <FieldError id={`${path}-error`}>
+                      {field.errors?.[0]}
+                    </FieldError>
                   </Field>
                 )}
               </FormischField>

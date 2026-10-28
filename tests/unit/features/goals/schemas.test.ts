@@ -25,6 +25,22 @@ const goal = {
 };
 
 describe("goal schemas", () => {
+  test("associates an invalid schedule with the schedule field", () => {
+    const result = v.safeParse(TaskFormSchema, {
+      title: "Entrenar",
+      estimatedMinutes: "30",
+      startTime: "08:00",
+      frequency: "weekly",
+      schedule: "",
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(v.flatten(result.issues).nested?.schedule).toEqual([
+        "Completa la programación requerida por la frecuencia.",
+      ]);
+    }
+  });
+
   test("validates a cursor page and partial updates", () => {
     expect(
       v.parse(GoalPageSchema, { items: [goal], nextCursor: null }).items,

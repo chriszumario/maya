@@ -67,3 +67,95 @@ test("keeps the nutrition form usable in a short viewport", async ({
   await page.keyboard.press("Escape");
   await expect(dialog).not.toBeVisible();
 });
+
+test("creates, edits and deletes food using labeled controls and keyboard selection", async ({
+  page,
+}) => {
+  const pageErrors: string[] = [];
+  page.on("pageerror", (error) => pageErrors.push(error.message));
+  await page.goto("/nutrition");
+  await page
+    .getByRole("button", { name: "Registrar alimento" })
+    .first()
+    .click();
+  const dialog = page.getByRole("dialog");
+  const meal = dialog.getByRole("combobox", { name: "Tipo de comida" });
+  await meal.focus();
+  await page.keyboard.press("ArrowDown");
+  await page
+    .getByRole("option", { name: "Desayuno", exact: true })
+    .press("Enter");
+  await dialog.getByLabel("Alimento o preparación").fill("Avena de prueba");
+  await dialog.getByLabel("Cantidad").fill("100");
+  await dialog.getByLabel("Unidad", { exact: true }).fill("g");
+  await dialog.getByLabel("Calorías", { exact: true }).fill("250");
+  await dialog.getByRole("button", { name: "Guardar alimento" }).click();
+  await expect(dialog).not.toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Avena de prueba" }),
+  ).toBeVisible();
+
+  await page.getByRole("button", { name: "Editar Avena de prueba" }).click();
+  await dialog.getByLabel("Calorías", { exact: true }).fill("275");
+  await dialog.getByRole("button", { name: "Guardar cambios" }).click();
+  await expect(dialog).not.toBeVisible();
+  await expect(page.getByText("275 kcal en esta página")).toBeVisible();
+
+  await page.getByRole("button", { name: "Eliminar Avena de prueba" }).click();
+  const confirmation = page.getByRole("alertdialog");
+  await confirmation.getByRole("button", { name: "Cancelar" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Avena de prueba" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Eliminar Avena de prueba" }).click();
+  await confirmation
+    .getByRole("button", { name: "Eliminar", exact: true })
+    .click();
+  await expect(page.getByText("No hay alimentos registrados")).toBeVisible();
+  expect(pageErrors).toEqual([]);
+});
+
+test("associates validation messages with profile inputs and prevents indexing", async ({
+  page,
+}) => {
+  await expect(page.locator('meta[name="robots"]')).toHaveAttribute(
+    "content",
+    "noindex, nofollow",
+  );
+  const timezone = page.getByLabel("Zona horaria");
+  await timezone.fill("Invalid/Timezone");
+  await page.getByRole("button", { name: "Guardar cambios" }).click();
+  await expect(timezone).toHaveAttribute("aria-invalid", "true");
+  await expect(timezone).toHaveAccessibleDescription(
+    /La zona horaria no es válida/,
+  );
+  await expect(timezone).toHaveValue("Invalid/Timezone");
+});
+
+test("uses not-found for a goal missing from the API", async ({ page }) => {
+  await page.goto("/goals/999");
+  await expect(page.getByText("No encontramos este contenido")).toBeVisible();
+  await expect(
+    page.getByText("No pudimos cargar esta sección"),
+  ).not.toBeVisible();
+});
+
+test("logs out and protects subsequent workspace navigation", async ({
+  page,
+}) => {
+  await page
+    .getByRole("button", { name: "Abrir menú de Usuario de prueba" })
+    .click();
+  await page.getByRole("menuitem", { name: "Cerrar sesión" }).click();
+  await expect(page).toHaveURL("/login");
+  await page.goto("/settings");
+  await expect(page).toHaveURL(/\/login\?redirect=/);
+});
+
+test("redirects an authenticated user away from login", async ({ page }) => {
+  await page.goto("/login");
+  await expect(page).toHaveURL("/");
+  await expect(
+    page.getByRole("button", { name: "Iniciar sesión" }),
+  ).not.toBeVisible();
+});

@@ -187,13 +187,14 @@ describe("authentication proxy", () => {
   });
 
   test("stops after a second 401 without a refresh loop", async () => {
-    vi.mocked(fetch).mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          error: { code: "INVALID_TOKEN", message: "revoked" },
-        }),
-        { status: 401 },
-      ),
+    vi.mocked(fetch).mockImplementation(
+      async () =>
+        new Response(
+          JSON.stringify({
+            error: { code: "INVALID_TOKEN", message: "revoked" },
+          }),
+          { status: 401 },
+        ),
     );
     mocks.refreshTokens.mockResolvedValue({
       accessToken: testAccessToken(nowSeconds + 1800),

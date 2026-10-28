@@ -1,6 +1,9 @@
 import { beforeEach, describe, expect, test, vi } from "vitest";
 
-import { encodeSession } from "@/features/auth/server/session-codec";
+import {
+  decodeSession,
+  encodeSession,
+} from "@/features/auth/server/session-codec";
 import { testAccessToken, testRefreshToken } from "../../../../support/auth";
 
 const cookie = vi.hoisted(() => ({ value: "" }));
@@ -45,6 +48,29 @@ beforeEach(() => {
 });
 
 describe("authenticated API client", () => {
+  test("blocks direct server operations after an uncertain refresh", async () => {
+    cookie.value = encodeSession({
+      ...decodeSession(cookie.value),
+      refreshBlocked: true,
+    });
+
+    await expect(
+      authenticatedApiFetch("/goals", { method: "POST", body: "{}" }),
+    ).rejects.toBe(redirectError);
+
+    expect(fetch).not.toHaveBeenCalled();
+    expect(redirect).toHaveBeenCalledWith("/auth/session-expired");
+  });
+
+  test("rejects a missing session without calling the API", async () => {
+    cookie.value = "";
+    await expect(authenticatedApiFetch("/protected")).rejects.toMatchObject({
+      code: "UNAUTHENTICATED",
+      status: 401,
+    });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
   test("uses the access token from the encrypted session", async () => {
     vi.mocked(fetch).mockResolvedValue(json({ ok: true }));
 

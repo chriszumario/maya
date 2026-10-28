@@ -102,6 +102,33 @@ describe("API client", () => {
     expect(fetch).not.toHaveBeenCalled();
   });
 
+  test("normalizes a body stream failure after headers have arrived", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    const body = new ReadableStream({
+      start(controller) {
+        controller.error(new TypeError("private transport details"));
+      },
+    });
+    vi.mocked(fetch).mockResolvedValue(new Response(body));
+
+    await expect(apiFetch("/auth/refresh")).rejects.toMatchObject({
+      code: "NETWORK_ERROR",
+      status: 503,
+      message: "El servicio no está disponible temporalmente.",
+    });
+  });
+
+  test("preserves HTTP errors when the body is not JSON", async () => {
+    vi.mocked(fetch).mockResolvedValue(
+      new Response("<html>private gateway details</html>", { status: 503 }),
+    );
+    await expect(apiFetch("/goals")).rejects.toMatchObject({
+      code: "HTTP_ERROR",
+      status: 503,
+      message: "El servicio no está disponible temporalmente.",
+    });
+  });
+
   test("returns null for an empty successful response", async () => {
     vi.mocked(fetch).mockResolvedValue(new Response(null, { status: 204 }));
 

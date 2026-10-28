@@ -1,5 +1,6 @@
 import "server-only";
 import { cacheLife, cacheTag } from "next/cache";
+import { notFound } from "next/navigation";
 import { cacheTags } from "@/lib/cache-tags";
 import {
   getGoalFn,
@@ -22,7 +23,10 @@ export async function getGoal(id: number) {
   cacheLife("minutes");
   cacheTag(cacheTags.goal(id));
   const result = await getGoalFn({ data: { id } });
-  if (!result.ok) throw new Error(result.error.message);
+  if (!result.ok) {
+    if ("status" in result.error && result.error.status === 404) notFound();
+    throw new Error(result.error.message);
+  }
   return result.data;
 }
 
@@ -31,7 +35,10 @@ export async function getGoalTasks(goalId: number, cursor?: string) {
   cacheLife("minutes");
   cacheTag(cacheTags.goal(goalId));
   const result = await getGoalTasksFn({ data: { goalId, limit: 20, cursor } });
-  if (!result.ok) throw new Error(result.error.message);
+  if (!result.ok) {
+    if ("status" in result.error && result.error.status === 404) notFound();
+    throw new Error(result.error.message);
+  }
   return result.data;
 }
 

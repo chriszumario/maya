@@ -8,12 +8,17 @@ import {
   MealTypeSchema,
 } from "@/lib/schemas/maya.schema";
 
-const QuantitySchema = v.pipe(v.number(), v.gtValue(0), v.maxValue(1_000_000));
+const QuantitySchema = v.pipe(
+  v.number(),
+  v.finite("La cantidad debe ser un número válido."),
+  v.gtValue(0, "La cantidad debe ser mayor que cero."),
+  v.maxValue(1_000_000, "La cantidad es demasiado grande."),
+);
 const UnitSchema = v.pipe(
   v.string(),
   v.trim(),
   v.nonEmpty("Indica la unidad."),
-  v.maxLength(50),
+  v.maxLength(50, "La unidad no puede superar 50 caracteres."),
 );
 const CaloriesSchema = v.pipe(
   v.number(),
@@ -40,37 +45,27 @@ const RequiredQuantityInputSchema = v.pipe(
   v.trim(),
   v.nonEmpty("Indica la cantidad."),
   v.toNumber("La cantidad debe ser un número."),
-  v.finite("La cantidad debe ser un número válido."),
-  v.gtValue(0, "La cantidad debe ser mayor que cero."),
-  v.maxValue(1_000_000, "La cantidad es demasiado grande."),
-);
-const RequiredUnitInputSchema = v.pipe(
-  v.string(),
-  v.trim(),
-  v.nonEmpty("Indica la unidad."),
-  v.maxLength(50, "La unidad no puede superar 50 caracteres."),
+  QuantitySchema,
 );
 const CaloriesInputSchema = v.pipe(
   v.string(),
   v.regex(/^\d+$/, "Las calorías deben ser un número entero."),
   v.toNumber(),
-  v.integer(),
-  v.minValue(0),
-  v.maxValue(100_000),
+  CaloriesSchema,
 );
 
 export const NutritionFormSchema = v.object({
   mealType: MealTypeSchema,
   name: RequiredNameSchema,
   quantity: RequiredQuantityInputSchema,
-  unit: RequiredUnitInputSchema,
+  unit: UnitSchema,
   calories: CaloriesInputSchema,
 });
 
 export const EstimateCaloriesInputSchema = v.object({
   name: RequiredNameSchema,
-  quantity: v.pipe(v.number(), v.gtValue(0), v.maxValue(1_000_000)),
-  unit: RequiredUnitInputSchema,
+  quantity: QuantitySchema,
+  unit: UnitSchema,
   mealType: v.optional(v.pipe(v.string(), v.maxLength(50))),
 });
 export const CaloriesEstimateSchema = v.object({

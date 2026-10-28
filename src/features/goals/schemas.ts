@@ -199,7 +199,6 @@ export const ImproveGoalResponseSchema = v.pipe(
     "La respuesta de IA supera el límite del campo.",
   ),
 );
-export const ValidatedImproveGoalResponseSchema = ImproveGoalResponseSchema;
 
 export type GoalAiField = v.InferOutput<typeof GoalAiFieldSchema>;
 
@@ -264,23 +263,27 @@ export const TaskFormSchema = v.pipe(
     estimatedMinutes: v.pipe(
       v.string(),
       v.toNumber("La duración debe ser un número."),
-      v.integer("La duración debe ser un número entero."),
-      v.minValue(0, "La duración no puede ser negativa."),
-      v.maxValue(1_440, "La duración máxima es 1440 minutos."),
+      EstimatedMinutesSchema,
     ),
     startTime: LocalTimeSchema,
     schedule: v.string(),
   }),
-  v.check(({ frequency, schedule }) => {
-    if (frequency === "daily") return schedule === "";
-    if (frequency === "once")
-      return (
-        v.safeParse(LocalDateSchema, schedule).success &&
-        hasValidRecurrenceMask(frequency, Number(schedule.replaceAll("-", "")))
-      );
-    if (!/^\d+$/.test(schedule)) return false;
-    return hasValidRecurrenceMask(frequency, Number(schedule));
-  }, "Completa la programación requerida por la frecuencia."),
+  v.forward(
+    v.check(({ frequency, schedule }) => {
+      if (frequency === "daily") return schedule === "";
+      if (frequency === "once")
+        return (
+          v.safeParse(LocalDateSchema, schedule).success &&
+          hasValidRecurrenceMask(
+            frequency,
+            Number(schedule.replaceAll("-", "")),
+          )
+        );
+      if (!/^\d+$/.test(schedule)) return false;
+      return hasValidRecurrenceMask(frequency, Number(schedule));
+    }, "Completa la programación requerida por la frecuencia."),
+    ["schedule"],
+  ),
   v.transform(({ schedule, ...input }) => ({
     ...input,
     recurrenceMask:

@@ -19,12 +19,12 @@ import {
   GoalTasksInputSchema,
   GoalTasksPageSchema,
   ImproveGoalInputSchema,
+  ImproveGoalResponseSchema,
   SetTaskActiveInputSchema,
   TaskIdInputSchema,
   UpdateGoalInputSchema,
   UpdateGoalStatusInputSchema,
   UpdateTaskInputSchema,
-  ValidatedImproveGoalResponseSchema,
 } from "./schemas";
 
 async function goalOperation<T>(operation: () => Promise<T>, message: string) {
@@ -35,51 +35,30 @@ async function goalOperation<T>(operation: () => Promise<T>, message: string) {
   }
 }
 
-export const getGoalsFn = validatedOperation(
-  GoalListInputSchema,
-  async (data) => {
-    try {
-      const search = new URLSearchParams({ limit: String(data.limit) });
-      if (data.cursor) search.set("cursor", data.cursor);
-      const response = await authenticatedApiFetch(`/goals?${search}`);
-      return { ok: true as const, data: v.parse(GoalPageSchema, response) };
-    } catch (error) {
-      return {
-        ok: false as const,
-        error: toPublicError(error, "No se pudieron obtener las metas."),
-      };
-    }
-  },
+export const getGoalsFn = validatedOperation(GoalListInputSchema, (data) =>
+  goalOperation(async () => {
+    const search = new URLSearchParams({ limit: String(data.limit) });
+    if (data.cursor) search.set("cursor", data.cursor);
+    const response = await authenticatedApiFetch(`/goals?${search}`);
+    return v.parse(GoalPageSchema, response);
+  }, "No se pudieron obtener las metas."),
 );
 
-export const getGoalFn = validatedOperation(GoalIdInputSchema, async (data) => {
-  try {
+export const getGoalFn = validatedOperation(GoalIdInputSchema, (data) =>
+  goalOperation(async () => {
     const response = await authenticatedApiFetch(`/goals/${data.id}`);
-    return { ok: true as const, data: v.parse(GoalDetailSchema, response) };
-  } catch (error) {
-    return {
-      ok: false as const,
-      error: toPublicError(error, "No se pudo obtener la meta."),
-    };
-  }
-});
+    return v.parse(GoalDetailSchema, response);
+  }, "No se pudo obtener la meta."),
+);
 
-export const createGoalFn = validatedOperation(
-  CreateGoalSchema,
-  async (data) => {
-    try {
-      const response = await authenticatedApiFetch("/goals", {
-        method: "POST",
-        body: JSON.stringify(data),
-      });
-      return { ok: true as const, data: v.parse(GoalSchema, response) };
-    } catch (error) {
-      return {
-        ok: false as const,
-        error: toPublicError(error, "No se pudo crear la meta."),
-      };
-    }
-  },
+export const createGoalFn = validatedOperation(CreateGoalSchema, (data) =>
+  goalOperation(async () => {
+    const response = await authenticatedApiFetch("/goals", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+    return v.parse(GoalSchema, response);
+  }, "No se pudo crear la meta."),
 );
 
 export const updateGoalFn = validatedOperation(UpdateGoalInputSchema, (data) =>
@@ -159,7 +138,7 @@ export const improveGoalFn = validatedOperation(
         method: "POST",
         body: JSON.stringify(data),
       });
-      const improved = v.parse(ValidatedImproveGoalResponseSchema, response);
+      const improved = v.parse(ImproveGoalResponseSchema, response);
       if (improved.field !== data.field) throw new Error("Unexpected AI field");
       return improved;
     }, "No se pudo mejorar la redacción con IA."),

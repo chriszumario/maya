@@ -29,7 +29,11 @@ export function AuthField({
     <Field data-invalid={Boolean(errors)}>
       <FieldLabel htmlFor={id}>{label}</FieldLabel>
       {children}
-      {description ? <FieldDescription>{description}</FieldDescription> : null}
+      {description ? (
+        <FieldDescription id={`${id}-description`}>
+          {description}
+        </FieldDescription>
+      ) : null}
       <FieldError id={errorId}>{errors?.[0]}</FieldError>
     </Field>
   );

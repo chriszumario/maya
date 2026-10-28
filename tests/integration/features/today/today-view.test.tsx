@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { act, fireEvent, render, screen } from "@testing-library/react";
-import { afterEach, expect, test, vi } from "vitest";
+import { afterEach, beforeEach, expect, test, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   updateTodayTaskFn: vi.fn(),
@@ -14,6 +14,8 @@ vi.mock("@/features/today/timer-feedback", () => ({
 }));
 
 import { TodayView } from "@/features/today/components/today-view";
+
+beforeEach(() => vi.clearAllMocks());
 
 afterEach(() => {
   window.localStorage.clear();
@@ -101,4 +103,57 @@ test("does not retry failed automatic completion until the user acts", async () 
     fireEvent.click(screen.getByRole("button", { name: "Finalizar" }));
   });
   expect(mocks.updateTodayTaskFn).toHaveBeenCalledTimes(2);
+});
+
+test("reconciles midnight while the running timer renders every second", async () => {
+  vi.useFakeTimers();
+  vi.setSystemTime(new Date("2026-10-20T23:59:30Z"));
+  mocks.refreshTodayTasksFn.mockResolvedValue({
+    ok: true,
+    data: { date: "2026-10-21", tasks: [] },
+  });
+  window.localStorage.setItem(
+    "maya:today-timer:1:2026-10-20",
+    JSON.stringify({
+      version: 2,
+      taskId: 1,
+      accumulatedSeconds: 0,
+      startedAt: Date.now(),
+      running: true,
+      warningIssued: false,
+      completionSignaled: false,
+    }),
+  );
+  render(
+    <TodayView
+      userId={1}
+      initialData={{
+        date: "2026-10-20",
+        tasks: [
+          {
+            id: 1,
+            title: "Leer",
+            goalTitle: "Aprender",
+            estimatedMinutes: 30,
+            startTime: "23:59",
+            status: "in_progress",
+            durationMinutes: 0,
+          },
+        ],
+      }}
+    />,
+  );
+
+  for (let second = 0; second < 60; second++) {
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1_000);
+    });
+  }
+
+  expect(mocks.refreshTodayTasksFn).toHaveBeenCalledOnce();
+  expect(screen.getByText("Tu agenda está despejada")).toBeDefined();
+  expect(
+    window.localStorage.getItem("maya:today-timer:1:2026-10-20"),
+  ).toBeNull();
+  expect(mocks.updateTodayTaskFn).not.toHaveBeenCalled();
 });

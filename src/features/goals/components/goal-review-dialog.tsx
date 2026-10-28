@@ -28,7 +28,6 @@ import {
 import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { useServerMutation as useMutation } from "@/hooks/use-server-mutation";
 import { createGoalReviewFn } from "../actions";
 import { GoalReviewFormSchema } from "../schemas";
 
@@ -53,20 +52,13 @@ export function GoalReviewDialog({
     validate: "submit",
     revalidate: "input",
   });
-  const createReview = useMutation({
-    mutationFn: async (
-      output: Parameters<SubmitHandler<typeof GoalReviewFormSchema>>[0],
-    ) =>
-      createGoalReviewFn({
-        data: { goalId, ...output, continueGoal },
-      }),
-  });
-
   const handleSubmit: SubmitHandler<typeof GoalReviewFormSchema> = async (
     output,
   ) => {
     setErrors(reviewForm, { errors: null });
-    const result = await createReview.mutateAsync(output);
+    const result = await createGoalReviewFn({
+      data: { goalId, ...output, continueGoal },
+    });
     if (!result.ok) {
       setErrors(reviewForm, { errors: [result.error.message] });
       return;
@@ -78,9 +70,8 @@ export function GoalReviewDialog({
     <Dialog
       open={open}
       onOpenChange={(nextOpen) => {
-        if (createReview.isPending) return;
+        if (reviewForm.isSubmitting) return;
         reset(reviewForm, { initialInput });
-        createReview.reset();
         setContinueGoal(true);
         setOpen(nextOpen);
       }}
@@ -109,10 +100,13 @@ export function GoalReviewDialog({
                     <Textarea
                       {...field.props}
                       id={`review-${path}`}
+                      aria-describedby={`review-${path}-error`}
                       value={field.input ?? ""}
                       aria-invalid={Boolean(field.errors)}
                     />
-                    <FieldError>{field.errors?.[0]}</FieldError>
+                    <FieldError id={`review-${path}-error`}>
+                      {field.errors?.[0]}
+                    </FieldError>
                   </Field>
                 )}
               </FormischField>
@@ -122,12 +116,16 @@ export function GoalReviewDialog({
                 <FieldLabel htmlFor="review-continue">
                   Continuar con esta meta
                 </FieldLabel>
-                <p className="text-sm text-muted-foreground">
+                <p
+                  id="review-continue-description"
+                  className="text-sm text-muted-foreground"
+                >
                   Desactívalo si la revisión indica que debes cerrarla.
                 </p>
               </div>
               <Switch
                 id="review-continue"
+                aria-describedby="review-continue-description"
                 checked={continueGoal}
                 onCheckedChange={setContinueGoal}
               />
@@ -138,17 +136,17 @@ export function GoalReviewDialog({
             <Button
               type="button"
               variant="outline"
+              disabled={reviewForm.isSubmitting}
               onClick={() => {
                 reset(reviewForm, { initialInput });
-                createReview.reset();
                 setOpen(false);
               }}
             >
               Cancelar
             </Button>
-            <Button type="submit" disabled={createReview.isPending}>
-              {createReview.isPending ? <Spinner /> : null}
-              {createReview.isPending ? "Guardando…" : "Guardar revisión"}
+            <Button type="submit" disabled={reviewForm.isSubmitting}>
+              {reviewForm.isSubmitting ? <Spinner /> : null}
+              {reviewForm.isSubmitting ? "Guardando…" : "Guardar revisión"}
             </Button>
           </DialogFooter>
         </Form>

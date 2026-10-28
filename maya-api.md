@@ -144,7 +144,6 @@ El límite de refresh **no** es por dispositivo: evita renovar en cada petición
 renderizado. Clientes detrás de la misma IP pueden compartir el límite de una operación.
 En un BFF compartido, coordina con el despliegue cómo llega la IP; no falsifiques headers
 de forwarding desde el cliente para eludir límites.
-
 - `X-RateLimit-Limit`: capacidad de la ventana.
 - `X-RateLimit-Remaining`: solicitudes restantes tras esta petición.
 - `X-RateLimit-Reset`: instante Unix en **segundos**, no milisegundos.
@@ -253,7 +252,7 @@ Respuesta `201`:
 
 ```ts
 type RegisterResponse = {
-  status: 'pending_approval';
+  status: "pending_approval";
 };
 ```
 
@@ -306,7 +305,6 @@ La respuesta incluye `Cache-Control: private, no-store` para impedir que el nave
 el cliente HTTP almacenen las credenciales en caché.
 
 Errores relevantes:
-
 - `401 INVALID_CREDENTIALS`: email o contraseña incorrectos.
 - `403 PENDING_APPROVAL`: la cuenta todavía no fue aprobada.
 
@@ -320,7 +318,7 @@ type RefreshBody = {
 };
 
 type RefreshHeaders = {
-  'Idempotency-Key': string; // base64url(SHA-256(refreshToken)), sin padding
+  "Idempotency-Key": string; // base64url(SHA-256(refreshToken)), sin padding
 };
 ```
 
@@ -331,9 +329,12 @@ Ejemplo para navegador HTTPS (o localhost) y runtimes con Web Crypto:
 
 ```ts
 async function refreshIdempotencyKey(refreshToken: string): Promise<string> {
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(refreshToken));
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(refreshToken),
+  );
   const base64 = btoa(String.fromCharCode(...new Uint8Array(digest)));
-  return base64.replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/, '');
+  return base64.replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "");
 }
 ```
 
@@ -398,7 +399,6 @@ invalidados. Los refresh tokens de otras familias siguen disponibles para renova
 Repetir solicitudes con una familia ya revocada no invalida tokens emitidos después.
 
 Errores relevantes:
-
 - `401 INVALID_REFRESH_TOKEN`: token con formato válido, pero desconocido, expirado o perteneciente a una cuenta inactiva.
 - `400 INVALID_IDEMPOTENCY_KEY`: falta `Idempotency-Key`, tiene un formato incorrecto o no corresponde
   al refresh token activo. El token no se consume y el cliente o BFF debe corregir la derivación.
@@ -522,9 +522,9 @@ recuperarla con refresh. La contraseña nueva debe diferir de la actual; errores
 Todas las rutas requieren autenticación.
 
 ```ts
-type GoalCategory = 'growth' | 'experience' | 'contribution';
-type GoalPriority = 'low' | 'medium' | 'high';
-type GoalStatus = 'pending' | 'in_progress' | 'completed' | 'cancelled';
+type GoalCategory = "growth" | "experience" | "contribution";
+type GoalPriority = "low" | "medium" | "high";
+type GoalStatus = "pending" | "in_progress" | "completed" | "cancelled";
 
 type Goal = {
   id: number;
@@ -591,7 +591,7 @@ resto. Una meta `completed` o `cancelled` es terminal y no puede volver a otro e
 Todas las rutas requieren autenticación.
 
 ```ts
-type TaskFrequency = 'daily' | 'weekly' | 'monthly' | 'once';
+type TaskFrequency = "daily" | "weekly" | "monthly" | "once";
 
 type Task = {
   id: number;
@@ -662,7 +662,7 @@ ni envíes campos de respuesta como `createdAt` en el formulario de edición.
 ## Ejecuciones de tareas
 
 ```ts
-type TaskLogStatus = 'in_progress' | 'completed';
+type TaskLogStatus = "in_progress" | "completed";
 
 type TaskLog = {
   id: number;
@@ -705,7 +705,7 @@ No hay endpoint de borrado de logs ni un estado `pending` persistido.
 ## Diario
 
 ```ts
-type Mood = 'excellent' | 'good' | 'neutral' | 'bad' | 'terrible';
+type Mood = "excellent" | "good" | "neutral" | "bad" | "terrible";
 
 type JournalEntry = {
   id: number;
@@ -756,7 +756,7 @@ El título admite entre 1 y 200 caracteres. El listado usa `limit=20` por defect
 ## Nutrición
 
 ```ts
-type MealType = 'breakfast' | 'lunch' | 'dinner' | 'snack' | 'drink';
+type MealType = "breakfast" | "lunch" | "dinner" | "snack" | "drink";
 
 type NutritionEntry = {
   id: number;
@@ -822,7 +822,7 @@ con UTC ni enviarla en la solicitud.
 | `GET /today/tasks` | Header `Authorization: Bearer <accessToken>` | `200 TodayResponse` |
 
 ```ts
-type TodayTaskStatus = 'pending' | 'in_progress' | 'completed';
+type TodayTaskStatus = "pending" | "in_progress" | "completed";
 
 type TodayTask = {
   id: number;
@@ -862,7 +862,6 @@ Ejemplo de respuesta `200`:
 La lista contiene únicamente tareas activas cuyas metas pertenecen al usuario y están en estado
 `in_progress`. Las tareas de metas `pending` no aparecen porque esas metas todavía no se están
 ejecutando. Una tarea aparece cuando corresponde a la fecha local:
-
 - `daily`: todos los días.
 - `weekly`: si `(recurrenceMask & bitDelDía) !== 0`, usando lunes `1` hasta domingo `64`.
 - `monthly`: si `recurrenceMask` coincide con el día actual; una tarea del día 31 no aparece en meses
@@ -909,7 +908,7 @@ Todas las rutas requieren autenticación.
 type DashboardSummary = {
   date: LocalDate;
   metricsAvailable: boolean;
-  goalsAsOf: 'current';
+  goalsAsOf: "current";
   goals: {
     total: number;
     pending: number;
@@ -946,18 +945,18 @@ type DashboardInsights = {
     reason: string;
   }>;
   alerts: Array<{
-    code: 'NO_RECENT_PROGRESS' | 'LOW_COMPLETION_RATE';
-    severity: 'info' | 'warning' | 'critical';
+    code: "NO_RECENT_PROGRESS" | "LOW_COMPLETION_RATE";
+    severity: "info" | "warning" | "critical";
     message: string;
   }>;
   trends: Array<{
-    code: 'COMPLETION_UP' | 'COMPLETION_DOWN' | 'COMPLETION_STABLE';
-    direction: 'up' | 'down' | 'stable';
+    code: "COMPLETION_UP" | "COMPLETION_DOWN" | "COMPLETION_STABLE";
+    direction: "up" | "down" | "stable";
     change: number; // porcentaje con signo
     message: string;
   }>;
   recommendations: Array<{
-    code: 'START_PRIORITY_GOAL' | 'REDUCE_DAILY_LOAD';
+    code: "START_PRIORITY_GOAL" | "REDUCE_DAILY_LOAD";
     message: string;
   }>;
 };
@@ -1032,14 +1031,21 @@ Todas las rutas requieren autenticación.
 | `POST /ai/estimate-calories` | `{ name, quantity, unit, mealType? }` | `{ calories }`    |
 
 ```ts
-type JournalAiField = 'title' | 'content' | 'gratitude' | 'wins' | 'lessons' | 'problems' | 'ideas';
+type JournalAiField =
+  | "title"
+  | "content"
+  | "gratitude"
+  | "wins"
+  | "lessons"
+  | "problems"
+  | "ideas";
 
 type ImproveJournalBody = {
   field: JournalAiField;
   text: string; // no vacío, máximo 2000 caracteres
 };
 
-type GoalAiField = 'title' | 'motivation';
+type GoalAiField = "title" | "motivation";
 
 type ImproveGoalBody = {
   field: GoalAiField;
@@ -1128,7 +1134,7 @@ type AdminStats = {
     admins: number;
   };
   activity: {
-    period: 'last_30_days';
+    period: "last_30_days";
     goals: number; // metas creadas en el periodo
     tasks: number; // tareas creadas en el periodo
     taskExecution: {
@@ -1220,18 +1226,25 @@ type HealthResponse = {
 Ejemplo de llamada protegida desde web (sin renovación automática):
 
 ```ts
-async function loadToday(baseUrl: string, accessToken: string): Promise<TodayResponse> {
-  const response = await fetch(new URL('/today/tasks', baseUrl), {
+async function loadToday(
+  baseUrl: string,
+  accessToken: string,
+): Promise<TodayResponse> {
+  const response = await fetch(new URL("/today/tasks", baseUrl), {
     headers: {
-      Accept: 'application/json',
+      Accept: "application/json",
       Authorization: `Bearer ${accessToken}`,
     },
-    cache: 'no-store',
+    cache: "no-store",
   });
   const body: unknown = await response.json().catch(() => null);
   if (!response.ok) {
     // El gestor de sesión decide si corresponde renovar según status/code.
-    throw { status: response.status, body, requestId: response.headers.get('X-Request-Id') };
+    throw {
+      status: response.status,
+      body,
+      requestId: response.headers.get("X-Request-Id"),
+    };
   }
   // El tipo TypeScript no valida JSON en runtime; valida aquí si tu cliente lo requiere.
   return body as TodayResponse;

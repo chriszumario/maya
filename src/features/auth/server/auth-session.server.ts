@@ -1,5 +1,6 @@
 import "server-only";
 
+import { cacheLife } from "next/cache";
 import { cookies } from "next/headers";
 import {
   type AppSessionData,
@@ -32,5 +33,7 @@ export async function getAppSession() {
 }
 
 export async function readSessionUser() {
+  "use cache: private";
+  cacheLife({ stale: 30 });
   return (await getAppSession()).data.user ?? null;
 }

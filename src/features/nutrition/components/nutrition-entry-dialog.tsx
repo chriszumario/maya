@@ -200,7 +200,12 @@ export function NutritionEntryDialog({
             <FormischField of={nutritionForm} path={["mealType"]}>
               {(field) => (
                 <Field data-invalid={Boolean(field.errors)}>
-                  <FieldLabel>Tipo de comida</FieldLabel>
+                  <FieldLabel
+                    id={`nutrition-meal-${entry?.id ?? "new"}-label`}
+                    htmlFor={`nutrition-meal-${entry?.id ?? "new"}`}
+                  >
+                    Tipo de comida
+                  </FieldLabel>
                   <Select
                     items={meals}
                     value={field.input}
@@ -210,6 +215,9 @@ export function NutritionEntryDialog({
                     }}
                   >
                     <SelectTrigger
+                      id={`nutrition-meal-${entry?.id ?? "new"}`}
+                      aria-labelledby={`nutrition-meal-${entry?.id ?? "new"}-label`}
+                      aria-describedby={`nutrition-meal-${entry?.id ?? "new"}-error`}
                       className="w-full"
                       aria-invalid={Boolean(field.errors)}
                     >
@@ -225,7 +233,9 @@ export function NutritionEntryDialog({
                       </SelectGroup>
                     </SelectContent>
                   </Select>
-                  <FieldError>{field.errors?.[0]}</FieldError>
+                  <FieldError id={`nutrition-meal-${entry?.id ?? "new"}-error`}>
+                    {field.errors?.[0]}
+                  </FieldError>
                 </Field>
               )}
             </FormischField>
@@ -239,6 +249,7 @@ export function NutritionEntryDialog({
                   <Input
                     {...field.props}
                     id={`nutrition-name-${entry?.id ?? "new"}`}
+                    aria-describedby={`nutrition-name-${entry?.id ?? "new"}-error`}
                     value={field.input ?? ""}
                     required
                     maxLength={200}
@@ -249,7 +260,9 @@ export function NutritionEntryDialog({
                       clearEstimate();
                     }}
                   />
-                  <FieldError>{field.errors?.[0]}</FieldError>
+                  <FieldError id={`nutrition-name-${entry?.id ?? "new"}-error`}>
+                    {field.errors?.[0]}
+                  </FieldError>
                 </Field>
               )}
             </FormischField>
@@ -266,6 +279,7 @@ export function NutritionEntryDialog({
                     <Input
                       {...field.props}
                       id={`nutrition-quantity-${entry?.id ?? "new"}`}
+                      aria-describedby={`nutrition-quantity-${entry?.id ?? "new"}-error`}
                       value={field.input ?? ""}
                       type="number"
                       required
@@ -278,7 +292,11 @@ export function NutritionEntryDialog({
                         clearEstimate();
                       }}
                     />
-                    <FieldError>{field.errors?.[0]}</FieldError>
+                    <FieldError
+                      id={`nutrition-quantity-${entry?.id ?? "new"}-error`}
+                    >
+                      {field.errors?.[0]}
+                    </FieldError>
                   </Field>
                 )}
               </FormischField>
@@ -294,6 +312,7 @@ export function NutritionEntryDialog({
                     <Input
                       {...field.props}
                       id={`nutrition-unit-${entry?.id ?? "new"}`}
+                      aria-describedby={`nutrition-unit-${entry?.id ?? "new"}-error`}
                       value={field.input ?? ""}
                       required
                       maxLength={50}
@@ -304,7 +323,11 @@ export function NutritionEntryDialog({
                         clearEstimate();
                       }}
                     />
-                    <FieldError>{field.errors?.[0]}</FieldError>
+                    <FieldError
+                      id={`nutrition-unit-${entry?.id ?? "new"}-error`}
+                    >
+                      {field.errors?.[0]}
+                    </FieldError>
                   </Field>
                 )}
               </FormischField>
@@ -322,6 +345,7 @@ export function NutritionEntryDialog({
                     <InputGroupInput
                       {...field.props}
                       id={`nutrition-calories-${entry?.id ?? "new"}`}
+                      aria-describedby={`nutrition-calories-${entry?.id ?? "new"}-error nutrition-estimate-${entry?.id ?? "new"}-error`}
                       value={field.input ?? ""}
                       type="number"
                       min="0"
@@ -354,9 +378,15 @@ export function NutritionEntryDialog({
                       </InputGroupButton>
                     </InputGroupAddon>
                   </InputGroup>
-                  <FieldError>{field.errors?.[0]}</FieldError>
+                  <FieldError
+                    id={`nutrition-calories-${entry?.id ?? "new"}-error`}
+                  >
+                    {field.errors?.[0]}
+                  </FieldError>
                   {estimateCalories.error ? (
-                    <FieldError>
+                    <FieldError
+                      id={`nutrition-estimate-${entry?.id ?? "new"}-error`}
+                    >
                       {estimateCalories.error instanceof Error
                         ? estimateCalories.error.message
                         : "No se pudieron estimar las calorías."}

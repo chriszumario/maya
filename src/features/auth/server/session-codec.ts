@@ -80,6 +80,7 @@ export function encodeSession(data: AppSessionData) {
 export function decodeSession(value?: string): AppSessionData {
   if (!value || value.length > MAX_SESSION_COOKIE_LENGTH) return {};
 
+  let envelope: v.InferOutput<typeof SessionEnvelopeSchema>;
   try {
     const parts = value.split(".");
     if (
@@ -107,13 +108,17 @@ export function decodeSession(value?: string): AppSessionData {
       ),
     );
     const parsed = v.safeParse(SessionEnvelopeSchema, decoded);
-    return parsed.success &&
-      parsed.output.expiresAt > Math.floor(Date.now() / 1000)
-      ? parsed.output.session
-      : {};
+    if (!parsed.success) return {};
+    envelope = parsed.output;
   } catch {
     return {};
   }
+
+  // Keep the clock read outside malformed-cookie handling so framework
+  // prerendering interrupts cannot be mistaken for an invalid session.
+  return envelope.expiresAt > Math.floor(Date.now() / 1000)
+    ? envelope.session
+    : {};
 }
 
 export const sessionCookieOptions = {

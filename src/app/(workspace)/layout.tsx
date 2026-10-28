@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { type ReactNode, Suspense } from "react";
 import { AppShell } from "@/components/layout/app-shell";
@@ -9,6 +10,10 @@ import {
 import { readSessionUser } from "@/features/auth/server/auth-session.server";
 
 type WorkspaceLayoutProps = { children: ReactNode };
+
+export const metadata: Metadata = {
+  robots: { index: false, follow: false },
+};
 
 async function AuthenticatedWorkspace({ children }: WorkspaceLayoutProps) {
   const user = await readSessionUser();

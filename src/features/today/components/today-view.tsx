@@ -7,7 +7,7 @@ import {
   PauseIcon,
   PlayIcon,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { PageHeader } from "@/components/shared/page-header";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -313,18 +313,19 @@ export function TodayView({
     };
   }, []);
 
+  const reconcile = useEffectEvent(() => {
+    if (
+      document.visibilityState !== "hidden" &&
+      !updateTask.isPending &&
+      !refreshToday.isPending
+    )
+      refreshToday.mutate();
+  });
+  const checkDate = useEffectEvent(() => {
+    if (localDateInTimeZone(timezone) !== data.date) reconcile();
+  });
+
   useEffect(() => {
-    const reconcile = () => {
-      if (
-        document.visibilityState !== "hidden" &&
-        !updateTask.isPending &&
-        !refreshToday.isPending
-      )
-        refreshToday.mutate();
-    };
-    const checkDate = () => {
-      if (localDateInTimeZone(timezone) !== data.date) reconcile();
-    };
     document.addEventListener("visibilitychange", reconcile);
     window.addEventListener("pageshow", reconcile);
     const interval = window.setInterval(checkDate, 60_000);
@@ -333,7 +334,7 @@ export function TodayView({
       window.removeEventListener("pageshow", reconcile);
       window.clearInterval(interval);
     };
-  }, [data.date, timezone, refreshToday, updateTask.isPending]);
+  }, []);
 
   useEffect(() => {
     if (

@@ -21,6 +21,7 @@ import {
   Trash2Icon,
 } from "lucide-react";
 import { useState } from "react";
+import * as v from "valibot";
 import { AiSuggestion } from "@/components/shared/ai-suggestion";
 import { CursorPagination } from "@/components/shared/cursor-pagination";
 import { PageHeader } from "@/components/shared/page-header";
@@ -86,6 +87,7 @@ import {
 } from "../actions";
 import { energyLevels, formatJournalDate, moods } from "../model/journal";
 import {
+  ImproveJournalInputSchema,
   type JournalAiField,
   type JournalEntry,
   type JournalFormInput,
@@ -159,6 +161,7 @@ function AiTextareaField({
             <InputGroupTextarea
               {...field.props}
               id={inputId}
+              aria-describedby={`${inputId}-error`}
               value={field.input ?? ""}
               maxLength={10_000}
               placeholder={aiFieldPlaceholders[name]}
@@ -181,7 +184,9 @@ function AiTextareaField({
               </InputGroupButton>
             </InputGroupAddon>
           </InputGroup>
-          <FieldError>{field.errors?.[0] ?? error}</FieldError>
+          <FieldError id={`${inputId}-error`}>
+            {field.errors?.[0] ?? error}
+          </FieldError>
         </Field>
       )}
     </FormischField>
@@ -299,18 +304,18 @@ export function JournalView({
     improveJournal.reset();
     setErrors(journalForm, { path: [field] as [JournalAiField], errors: null });
     setSuggestion(undefined);
-    if (!normalized || normalized.length > 2_000) {
+    const result = v.safeParse(ImproveJournalInputSchema, {
+      field,
+      text: normalized,
+    });
+    if (!result.success) {
       setErrors(journalForm, {
         path: [field] as [JournalAiField],
-        errors: [
-          normalized
-            ? "La IA admite hasta 2000 caracteres por campo."
-            : "Escribe algo antes de pedir una mejora.",
-        ],
+        errors: [result.issues[0].message],
       });
       return;
     }
-    improveJournal.mutate({ field, text: normalized });
+    improveJournal.mutate(result.output);
   }
 
   const busy =
@@ -330,7 +335,7 @@ export function JournalView({
       <PageHeader
         eyebrow="Diario"
         title="Haz visible lo que estás viviendo"
-        description="Una entrada por fecha para registrar ánimo, energía, gratitud, logros, aprendizajes, problemas e ideas."
+        description="Registra ánimo, energía, gratitud, logros, aprendizajes, problemas e ideas a lo largo del día."
         actions={
           <div className="flex flex-wrap gap-2">
             <Button
@@ -466,12 +471,15 @@ export function JournalView({
                       <Input
                         {...field.props}
                         id="journal-date"
+                        aria-describedby="journal-date-error"
                         value={field.input ?? ""}
                         type="date"
                         disabled
                         aria-invalid={Boolean(field.errors)}
                       />
-                      <FieldError>{field.errors?.[0]}</FieldError>
+                      <FieldError id="journal-date-error">
+                        {field.errors?.[0]}
+                      </FieldError>
                     </Field>
                   )}
                 </FormischField>
@@ -489,6 +497,7 @@ export function JournalView({
                         <InputGroupInput
                           {...field.props}
                           id="journal-title"
+                          aria-describedby="journal-title-error"
                           value={field.input ?? ""}
                           required
                           maxLength={200}
@@ -518,7 +527,7 @@ export function JournalView({
                           </InputGroupButton>
                         </InputGroupAddon>
                       </InputGroup>
-                      <FieldError>
+                      <FieldError id="journal-title-error">
                         {field.errors?.[0] ??
                           (improveJournal.variables?.field === "title"
                             ? improveError
@@ -531,7 +540,12 @@ export function JournalView({
                   <FormischField of={journalForm} path={["mood"]}>
                     {(field) => (
                       <Field data-invalid={Boolean(field.errors)}>
-                        <FieldLabel>Estado de ánimo</FieldLabel>
+                        <FieldLabel
+                          id="journal-mood-label"
+                          htmlFor="journal-mood"
+                        >
+                          Estado de ánimo
+                        </FieldLabel>
                         <Select
                           items={moods}
                           value={field.input || null}
@@ -540,6 +554,9 @@ export function JournalView({
                           }
                         >
                           <SelectTrigger
+                            id="journal-mood"
+                            aria-labelledby="journal-mood-label"
+                            aria-describedby="journal-mood-error"
                             className="w-full"
                             aria-invalid={Boolean(field.errors)}
                           >
@@ -555,20 +572,30 @@ export function JournalView({
                             </SelectGroup>
                           </SelectContent>
                         </Select>
-                        <FieldError>{field.errors?.[0]}</FieldError>
+                        <FieldError id="journal-mood-error">
+                          {field.errors?.[0]}
+                        </FieldError>
                       </Field>
                     )}
                   </FormischField>
                   <FormischField of={journalForm} path={["energyLevel"]}>
                     {(field) => (
                       <Field data-invalid={Boolean(field.errors)}>
-                        <FieldLabel>Nivel de energía</FieldLabel>
+                        <FieldLabel
+                          id="journal-energy-label"
+                          htmlFor="journal-energy"
+                        >
+                          Nivel de energía
+                        </FieldLabel>
                         <Select
                           items={energyLevels}
                           value={field.input || null}
                           onValueChange={(value) => field.onChange(value ?? "")}
                         >
                           <SelectTrigger
+                            id="journal-energy"
+                            aria-labelledby="journal-energy-label"
+                            aria-describedby="journal-energy-error"
                             className="w-full"
                             aria-invalid={Boolean(field.errors)}
                           >
@@ -584,7 +611,9 @@ export function JournalView({
                             </SelectGroup>
                           </SelectContent>
                         </Select>
-                        <FieldError>{field.errors?.[0]}</FieldError>
+                        <FieldError id="journal-energy-error">
+                          {field.errors?.[0]}
+                        </FieldError>
                       </Field>
                     )}
                   </FormischField>

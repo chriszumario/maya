@@ -12,6 +12,7 @@ import {
 } from "@formisch/react";
 import { SparklesIcon } from "lucide-react";
 import { useState } from "react";
+import * as v from "valibot";
 import { AiSuggestion } from "@/components/shared/ai-suggestion";
 import { Button } from "@/components/ui/button";
 import {
@@ -54,6 +55,7 @@ import {
   type GoalAiField,
   type GoalCategory,
   type GoalPriority,
+  ImproveGoalInputSchema,
 } from "../schemas";
 
 const categories: Array<{ label: string; value: GoalCategory }> = [
@@ -93,14 +95,6 @@ export function GoalFormDialog({ trigger, goal }: GoalFormDialogProps) {
     validate: "submit",
     revalidate: "input",
   });
-  const saveGoal = useMutation({
-    mutationFn: async (
-      output: Parameters<SubmitHandler<typeof CreateGoalSchema>>[0],
-    ) =>
-      goal
-        ? updateGoalFn({ data: { id: goal.id, ...output } })
-        : createGoalFn({ data: output }),
-  });
   const improveGoal = useMutation({
     mutationFn: async ({
       field,
@@ -126,7 +120,9 @@ export function GoalFormDialog({ trigger, goal }: GoalFormDialogProps) {
     output,
   ) => {
     setErrors(goalForm, { errors: null });
-    const result = await saveGoal.mutateAsync(output);
+    const result = goal
+      ? await updateGoalFn({ data: { id: goal.id, ...output } })
+      : await createGoalFn({ data: output });
     if (!result.ok) {
       setErrors(goalForm, { errors: [result.error.message] });
       return;
@@ -139,38 +135,18 @@ export function GoalFormDialog({ trigger, goal }: GoalFormDialogProps) {
     improveGoal.reset();
     setSuggestion(undefined);
     const text = getInput(goalForm, { path: [field] })?.trim() ?? "";
-    if (!text) {
-      if (field === "title") {
-        setErrors(goalForm, {
-          path: ["title"],
-          errors: ["Escribe un título antes de usar la IA."],
-        });
-      } else {
-        setErrors(goalForm, {
-          path: ["motivation"],
-          errors: ["Escribe una motivación antes de usar la IA."],
-        });
-      }
+    const result = v.safeParse(ImproveGoalInputSchema, { field, text });
+    if (!result.success) {
+      setErrors(goalForm, {
+        path: [field],
+        errors: [result.issues[0].message],
+      });
       return;
     }
-    if (text.length > 2_000) {
-      if (field === "title") {
-        setErrors(goalForm, {
-          path: ["title"],
-          errors: ["La IA admite hasta 2000 caracteres por campo."],
-        });
-      } else {
-        setErrors(goalForm, {
-          path: ["motivation"],
-          errors: ["La IA admite hasta 2000 caracteres por campo."],
-        });
-      }
-      return;
-    }
-    improveGoal.mutate({ field, text });
+    improveGoal.mutate(result.output);
   }
 
-  const busy = saveGoal.isPending || improveGoal.isPending;
+  const busy = goalForm.isSubmitting || improveGoal.isPending;
 
   return (
     <Dialog
@@ -178,7 +154,6 @@ export function GoalFormDialog({ trigger, goal }: GoalFormDialogProps) {
       onOpenChange={(nextOpen) => {
         if (busy) return;
         reset(goalForm, { initialInput: goalFormInput(goal) });
-        saveGoal.reset();
         improveGoal.reset();
         setSuggestion(undefined);
         setOpen(nextOpen);
@@ -209,6 +184,7 @@ export function GoalFormDialog({ trigger, goal }: GoalFormDialogProps) {
                     <InputGroupInput
                       {...field.props}
                       id="goal-title"
+                      aria-describedby="goal-title-error"
                       value={field.input ?? ""}
                       maxLength={200}
                       placeholder="Ej. Publicar la primera versión"
@@ -231,7 +207,9 @@ export function GoalFormDialog({ trigger, goal }: GoalFormDialogProps) {
                       </InputGroupButton>
                     </InputGroupAddon>
                   </InputGroup>
-                  <FieldError>{field.errors?.[0]}</FieldError>
+                  <FieldError id="goal-title-error">
+                    {field.errors?.[0]}
+                  </FieldError>
                 </Field>
               )}
             </FormischField>
@@ -243,6 +221,7 @@ export function GoalFormDialog({ trigger, goal }: GoalFormDialogProps) {
                     <InputGroupTextarea
                       {...field.props}
                       id="goal-motivation"
+                      aria-describedby="goal-motivation-error"
                       value={field.input ?? ""}
                       maxLength={4_000}
                       placeholder="¿Por qué esta meta importa?"
@@ -265,7 +244,9 @@ export function GoalFormDialog({ trigger, goal }: GoalFormDialogProps) {
                       </InputGroupButton>
                     </InputGroupAddon>
                   </InputGroup>
-                  <FieldError>{field.errors?.[0]}</FieldError>
+                  <FieldError id="goal-motivation-error">
+                    {field.errors?.[0]}
+                  </FieldError>
                 </Field>
               )}
             </FormischField>
@@ -273,7 +254,12 @@ export function GoalFormDialog({ trigger, goal }: GoalFormDialogProps) {
               <FormischField of={goalForm} path={["category"]}>
                 {(field) => (
                   <Field>
-                    <FieldLabel>Categoría</FieldLabel>
+                    <FieldLabel
+                      id="goal-category-label"
+                      htmlFor="goal-category"
+                    >
+                      Categoría
+                    </FieldLabel>
                     <Select
                       items={categories}
                       value={field.input}
@@ -281,7 +267,11 @@ export function GoalFormDialog({ trigger, goal }: GoalFormDialogProps) {
                         field.onChange(value as GoalCategory)
                       }
                     >
-                      <SelectTrigger className="w-full">
+                      <SelectTrigger
+                        id="goal-category"
+                        aria-labelledby="goal-category-label"
+                        className="w-full"
+                      >
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -300,7 +290,12 @@ export function GoalFormDialog({ trigger, goal }: GoalFormDialogProps) {
               <FormischField of={goalForm} path={["priority"]}>
                 {(field) => (
                   <Field>
-                    <FieldLabel>Prioridad</FieldLabel>
+                    <FieldLabel
+                      id="goal-priority-label"
+                      htmlFor="goal-priority"
+                    >
+                      Prioridad
+                    </FieldLabel>
                     <Select
                       items={priorities}
                       value={field.input}
@@ -308,7 +303,11 @@ export function GoalFormDialog({ trigger, goal }: GoalFormDialogProps) {
                         field.onChange(value as GoalPriority)
                       }
                     >
-                      <SelectTrigger className="w-full">
+                      <SelectTrigger
+                        id="goal-priority"
+                        aria-labelledby="goal-priority-label"
+                        className="w-full"
+                      >
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -349,9 +348,9 @@ export function GoalFormDialog({ trigger, goal }: GoalFormDialogProps) {
             <Button
               type="button"
               variant="outline"
+              disabled={goalForm.isSubmitting}
               onClick={() => {
                 reset(goalForm, { initialInput: goalFormInput(goal) });
-                saveGoal.reset();
                 improveGoal.reset();
                 setSuggestion(undefined);
                 setOpen(false);
@@ -360,8 +359,8 @@ export function GoalFormDialog({ trigger, goal }: GoalFormDialogProps) {
               Cancelar
             </Button>
             <Button type="submit" disabled={busy}>
-              {saveGoal.isPending ? <Spinner /> : null}
-              {saveGoal.isPending
+              {goalForm.isSubmitting ? <Spinner /> : null}
+              {goalForm.isSubmitting
                 ? "Guardando…"
                 : goal
                   ? "Guardar cambios"

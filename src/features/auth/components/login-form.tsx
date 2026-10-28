@@ -114,7 +114,9 @@ function LoginFormContent({ redirectTo }: { redirectTo?: string }) {
                     className="h-11 px-4"
                     aria-invalid={Boolean(field.errors)}
                     aria-describedby={
-                      field.errors ? "login-password-error" : undefined
+                      field.errors
+                        ? "login-password-description login-password-error"
+                        : "login-password-description"
                     }
                   />
                 </AuthField>

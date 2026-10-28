@@ -1,15 +1,17 @@
 import { describe, expect, test, vi } from "vitest";
 
-import { collectCursorPages, findCursorItem } from "@/lib/cursor-pagination";
+import { findCursorItem } from "@/lib/cursor-pagination";
 
 describe("cursor pagination", () => {
-  test("collects pages until the API ends the sequence", async () => {
+  test("returns no item when the API ends the sequence", async () => {
     const fetchPage = vi
       .fn()
       .mockResolvedValueOnce({ items: [1, 2], nextCursor: "next" })
       .mockResolvedValueOnce({ items: [3], nextCursor: null });
 
-    await expect(collectCursorPages(fetchPage)).resolves.toEqual([1, 2, 3]);
+    await expect(
+      findCursorItem(fetchPage, () => false),
+    ).resolves.toBeUndefined();
     expect(fetchPage).toHaveBeenNthCalledWith(1, undefined);
     expect(fetchPage).toHaveBeenNthCalledWith(2, "next");
   });
@@ -20,7 +22,7 @@ describe("cursor pagination", () => {
       nextCursor: "repeated",
     });
 
-    await expect(collectCursorPages(fetchPage)).rejects.toThrow(
+    await expect(findCursorItem(fetchPage, () => false)).rejects.toThrow(
       "cursor de paginación repetido",
     );
     expect(fetchPage).toHaveBeenCalledTimes(2);

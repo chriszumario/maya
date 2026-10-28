@@ -37,7 +37,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
-import { useServerMutation as useMutation } from "@/hooks/use-server-mutation";
 import { createTaskFn, updateTaskFn } from "../actions";
 import {
   type GoalTask,
@@ -93,22 +92,11 @@ export function TaskFormDialog({ goalId, trigger, task }: TaskFormDialogProps) {
     validate: "submit",
     revalidate: "input",
   });
-  const saveTask = useMutation({
-    mutationFn: async (output: {
-      title: string;
-      frequency: TaskFrequency;
-      estimatedMinutes: number;
-      startTime: string;
-      recurrenceMask: number;
-    }) =>
-      task
-        ? updateTaskFn({ data: { taskId: task.id, ...output } })
-        : createTaskFn({ data: { goalId, ...output } }),
-  });
-
   const handleSubmit: SubmitHandler<typeof TaskFormSchema> = async (output) => {
     setErrors(taskForm, { errors: null });
-    const result = await saveTask.mutateAsync(output);
+    const result = task
+      ? await updateTaskFn({ data: { taskId: task.id, ...output } })
+      : await createTaskFn({ data: { goalId, ...output } });
     if (!result.ok) {
       setErrors(taskForm, { errors: [result.error.message] });
       return;
@@ -125,9 +113,8 @@ export function TaskFormDialog({ goalId, trigger, task }: TaskFormDialogProps) {
     <Dialog
       open={open}
       onOpenChange={(nextOpen) => {
-        if (saveTask.isPending) return;
+        if (taskForm.isSubmitting) return;
         reset(taskForm, { initialInput: taskFormInput(task) });
-        saveTask.reset();
         setOpen(nextOpen);
       }}
     >
@@ -148,12 +135,15 @@ export function TaskFormDialog({ goalId, trigger, task }: TaskFormDialogProps) {
                   <Input
                     {...field.props}
                     id="task-title"
+                    aria-describedby="task-title-error"
                     value={field.input ?? ""}
                     maxLength={200}
                     placeholder="Ej. Entrenar fuerza"
                     aria-invalid={Boolean(field.errors)}
                   />
-                  <FieldError>{field.errors?.[0]}</FieldError>
+                  <FieldError id="task-title-error">
+                    {field.errors?.[0]}
+                  </FieldError>
                 </Field>
               )}
             </FormischField>
@@ -161,7 +151,12 @@ export function TaskFormDialog({ goalId, trigger, task }: TaskFormDialogProps) {
               <FormischField of={taskForm} path={["frequency"]}>
                 {(field) => (
                   <Field className="sm:col-span-1">
-                    <FieldLabel>Frecuencia</FieldLabel>
+                    <FieldLabel
+                      id="task-frequency-label"
+                      htmlFor="task-frequency"
+                    >
+                      Frecuencia
+                    </FieldLabel>
                     <Select
                       items={frequencies}
                       value={field.input}
@@ -169,7 +164,11 @@ export function TaskFormDialog({ goalId, trigger, task }: TaskFormDialogProps) {
                         changeFrequency(value as TaskFrequency)
                       }
                     >
-                      <SelectTrigger className="w-full">
+                      <SelectTrigger
+                        id="task-frequency"
+                        aria-labelledby="task-frequency-label"
+                        className="w-full"
+                      >
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -192,13 +191,16 @@ export function TaskFormDialog({ goalId, trigger, task }: TaskFormDialogProps) {
                     <Input
                       {...field.props}
                       id="task-minutes"
+                      aria-describedby="task-minutes-error"
                       type="number"
                       min={0}
                       max={1_440}
                       value={field.input ?? ""}
                       aria-invalid={Boolean(field.errors)}
                     />
-                    <FieldError>{field.errors?.[0]}</FieldError>
+                    <FieldError id="task-minutes-error">
+                      {field.errors?.[0]}
+                    </FieldError>
                   </Field>
                 )}
               </FormischField>
@@ -209,11 +211,14 @@ export function TaskFormDialog({ goalId, trigger, task }: TaskFormDialogProps) {
                     <Input
                       {...field.props}
                       id="task-time"
+                      aria-describedby="task-time-error"
                       type="time"
                       value={field.input ?? ""}
                       aria-invalid={Boolean(field.errors)}
                     />
-                    <FieldError>{field.errors?.[0]}</FieldError>
+                    <FieldError id="task-time-error">
+                      {field.errors?.[0]}
+                    </FieldError>
                   </Field>
                 )}
               </FormischField>
@@ -225,8 +230,17 @@ export function TaskFormDialog({ goalId, trigger, task }: TaskFormDialogProps) {
                     {(field) => {
                       const selectedMask = Number(field.input || 0);
                       return (
-                        <Field data-invalid={Boolean(field.errors)}>
-                          <FieldLabel>Días de la semana</FieldLabel>
+                        <Field
+                          data-invalid={Boolean(field.errors)}
+                          aria-labelledby="task-days-label"
+                          aria-describedby="task-days-error"
+                        >
+                          <span
+                            id="task-days-label"
+                            className="text-sm font-medium"
+                          >
+                            Días de la semana
+                          </span>
                           <div className="grid grid-cols-7 gap-2">
                             {weekDays.map((day) => (
                               <Button
@@ -251,7 +265,9 @@ export function TaskFormDialog({ goalId, trigger, task }: TaskFormDialogProps) {
                               </Button>
                             ))}
                           </div>
-                          <FieldError>{field.errors?.[0]}</FieldError>
+                          <FieldError id="task-days-error">
+                            {field.errors?.[0]}
+                          </FieldError>
                         </Field>
                       );
                     }}
@@ -264,15 +280,19 @@ export function TaskFormDialog({ goalId, trigger, task }: TaskFormDialogProps) {
                         <Input
                           {...field.props}
                           id="task-day"
+                          aria-invalid={Boolean(field.errors)}
+                          aria-describedby="task-day-description task-day-error"
                           type="number"
                           min={1}
                           max={31}
                           value={field.input ?? ""}
                         />
-                        <FieldDescription>
+                        <FieldDescription id="task-day-description">
                           Elige un valor entre 1 y 31.
                         </FieldDescription>
-                        <FieldError>{field.errors?.[0]}</FieldError>
+                        <FieldError id="task-day-error">
+                          {field.errors?.[0]}
+                        </FieldError>
                       </Field>
                     )}
                   </FormischField>
@@ -284,10 +304,14 @@ export function TaskFormDialog({ goalId, trigger, task }: TaskFormDialogProps) {
                         <Input
                           {...field.props}
                           id="task-date"
+                          aria-invalid={Boolean(field.errors)}
+                          aria-describedby="task-date-error"
                           type="date"
                           value={field.input ?? ""}
                         />
-                        <FieldError>{field.errors?.[0]}</FieldError>
+                        <FieldError id="task-date-error">
+                          {field.errors?.[0]}
+                        </FieldError>
                       </Field>
                     )}
                   </FormischField>
@@ -302,17 +326,17 @@ export function TaskFormDialog({ goalId, trigger, task }: TaskFormDialogProps) {
             <Button
               type="button"
               variant="outline"
+              disabled={taskForm.isSubmitting}
               onClick={() => {
                 reset(taskForm, { initialInput: taskFormInput(task) });
-                saveTask.reset();
                 setOpen(false);
               }}
             >
               Cancelar
             </Button>
-            <Button type="submit" disabled={saveTask.isPending}>
-              {saveTask.isPending ? <Spinner /> : null}
-              {saveTask.isPending
+            <Button type="submit" disabled={taskForm.isSubmitting}>
+              {taskForm.isSubmitting ? <Spinner /> : null}
+              {taskForm.isSubmitting
                 ? "Guardando…"
                 : task
                   ? "Guardar tarea"

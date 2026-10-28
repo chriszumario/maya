@@ -6,6 +6,7 @@ export function toPublicError(error: unknown, fallbackMessage: string) {
   if (error instanceof ApiClientError) {
     return {
       code: error.code,
+      status: error.status,
       message: error.message,
       requestId: error.requestId,
       retryAfter: error.retryAfter,

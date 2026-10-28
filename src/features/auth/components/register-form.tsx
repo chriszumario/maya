@@ -145,7 +145,9 @@ function RegisterFormContent() {
                     className="h-11 px-4"
                     aria-invalid={Boolean(field.errors)}
                     aria-describedby={
-                      field.errors ? "register-password-error" : undefined
+                      field.errors
+                        ? "register-password-description register-password-error"
+                        : "register-password-description"
                     }
                   />
                 </AuthField>

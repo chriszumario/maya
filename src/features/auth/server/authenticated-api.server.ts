@@ -8,6 +8,7 @@ export async function authenticatedApiFetch(
   options: RequestInit = {},
 ) {
   const session = await getAppSession();
+  if (session.data.refreshBlocked) redirect("/auth/session-expired");
   const { accessToken, refreshToken } = session.data;
   if (!accessToken || !refreshToken) {
     throw new ApiClientError({

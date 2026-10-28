@@ -1,17 +1,16 @@
 # Maya
 
-Aplicación web de seguimiento de metas, agenda, diario y nutrición. Usa Next.js 16.3.4 y React 19.2.8 con App Router como BFF para Maya API; las credenciales y la obtención de datos privados permanecen en el servidor.
+Aplicación web de seguimiento de metas, agenda, diario y nutrición. Usa Next.js 16.4.2 y React 19.3.1 con App Router como BFF para Maya API; las credenciales y la obtención de datos privados permanecen en el servidor.
 
 ## Requisitos
 
 - Bun 1.4.1 para instalar dependencias y ejecutar herramientas.
-- Node.js 20.19 o superior para el runtime de producción de Next.js. Cache Components requiere el runtime de Node.js.
+- Node.js 22.12+, 24.x o 26+ (recomendado: Node 24 LTS) para Next.js y las herramientas de pruebas. El rango de `engines` incluye los requisitos de Vitest 5; Cache Components requiere el runtime de Node.js.
 - Una instancia accesible de Maya API.
 
 ## Configuración
 
 Crea `.env` a partir de `.env.example` y configura:
-
 - `API_URL`: origen de Maya API, sin `/api`, `/v1` ni otros prefijos de ruta (por defecto `http://localhost:4000`). En producción debe usar HTTPS, salvo loopback.
 - `SESSION_SECRET`: secreto aleatorio por entorno de al menos 32 caracteres. Los valores de ejemplo son rechazados en producción.
 
@@ -52,7 +51,7 @@ bun run build
 
 Dentro de `unit` e `integration`, las carpetas reflejan `src` para que cada prueba sea fácil de ubicar.
 
-Server Components son el valor predeterminado. Los módulos con `"use client"` se limitan a formularios, navegación interactiva y APIs del navegador. Las lecturas privadas usan `use cache: private`: su caché reside en la memoria del navegador, no en una caché compartida del servidor, y sus etiquetas son invalidadas por las mutaciones. El menú precarga destinos al recibir foco o hover.
+Server Components son el valor predeterminado. Los módulos con `"use client"` se limitan a formularios, navegación interactiva y APIs del navegador. Las lecturas privadas usan `use cache: private`: en producción deduplican dentro de una petición y el router conserva el resultado renderizado en memoria del navegador, sin caché de servidor entre peticiones. En desarrollo Next mantiene una caché en memoria por cookies y cabeceras. Las etiquetas son invalidadas por las mutaciones; la lectura del usuario usa un stale de 30 segundos. El menú precarga destinos al recibir foco o hover.
 
 Las colecciones grandes usan paginación por cursor en la URL y nunca se serializan completas al cliente. Los conteos y filtros locales se identifican como pertenecientes a la página actual.
 
@@ -67,3 +66,5 @@ Las invalidaciones del cliente no eliminan la caché interna de Maya API: las te
 Si una renovación queda incierta tras el reintento acotado, la cookie se marca para impedir reproducciones posteriores del token consumido y se solicita iniciar sesión; no se afirma que el servidor la haya revocado. Si la rotación sí se confirma pero falla la consulta posterior del perfil, el par sucesor se conserva para no perder la sesión.
 
 React Compiler está habilitado mediante la opción estable `reactCompiler: true` y `babel-plugin-react-compiler`. No se requiere memoización manual por defecto.
+
+La auditoría actual, las decisiones de dependencias y las verificaciones están en [`AUDIT.md`](AUDIT.md). `REFACTOR.md` conserva el informe histórico de septiembre.

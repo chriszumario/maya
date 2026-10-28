@@ -118,7 +118,14 @@ function safeApiMessage(status: number, code: string) {
 
 async function readJson(response: Response): Promise<unknown> {
   if (response.status === 204) return null;
-  return response.json().catch(() => null);
+  try {
+    return await response.json();
+  } catch (error) {
+    // Invalid JSON is validated by the caller; a failed body stream is a
+    // transport failure, including when headers arrived before the timeout.
+    if (error instanceof SyntaxError) return null;
+    throw error;
+  }
 }
 
 export async function apiFetch(
@@ -133,6 +140,7 @@ export async function apiFetch(
   if (token) headers.set("Authorization", `Bearer ${token}`);
 
   let response: Response;
+  let body: unknown;
   try {
     const timeoutSignal = AbortSignal.timeout(
       path.startsWith("/ai/") ? 20_000 : 15_000,
@@ -147,6 +155,11 @@ export async function apiFetch(
       headers,
       signal,
     });
+    body = ["HEAD", "OPTIONS"].includes(
+      requestOptions.method?.toUpperCase() ?? "GET",
+    )
+      ? null
+      : await readJson(response);
   } catch (error) {
     console.error("Maya API request failed", {
       path,
@@ -160,11 +173,6 @@ export async function apiFetch(
     });
   }
 
-  const body = ["HEAD", "OPTIONS"].includes(
-    requestOptions.method?.toUpperCase() ?? "GET",
-  )
-    ? null
-    : await readJson(response);
   if (!response.ok) {
     const result = v.safeParse(ApiErrorSchema, body);
     const code = result.success ? result.output.error.code : "HTTP_ERROR";

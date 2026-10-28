@@ -6,12 +6,12 @@ import {
   CreateJournalInputSchema,
   DeletedJournalSchema,
   ImproveJournalInputSchema,
+  ImproveJournalResponseSchema,
   JournalEntrySchema,
   JournalIdInputSchema,
   JournalListInputSchema,
   JournalPageSchema,
   UpdateJournalInputSchema,
-  ValidatedImproveJournalResponseSchema,
 } from "./schemas";
 
 async function journalOperation<T>(
@@ -80,7 +80,7 @@ export const improveJournalFieldFn = validatedOperation(
         method: "POST",
         body: JSON.stringify(data),
       });
-      const improved = v.parse(ValidatedImproveJournalResponseSchema, response);
+      const improved = v.parse(ImproveJournalResponseSchema, response);
       if (improved.field !== data.field) throw new Error("Unexpected AI field");
       return improved;
     }, "No se pudo mejorar el texto con IA."),

@@ -131,8 +131,6 @@ export const ImproveJournalResponseSchema = v.pipe(
     "La respuesta de IA supera el límite del campo.",
   ),
 );
-export const ValidatedImproveJournalResponseSchema =
-  ImproveJournalResponseSchema;
 
 export type JournalEntry = v.InferOutput<typeof JournalEntrySchema>;
 export type JournalFormInput = v.InferInput<typeof JournalFormSchema>;
