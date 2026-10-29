@@ -1,6 +1,6 @@
 # Maya
 
-Aplicación web de seguimiento de metas, agenda, diario y nutrición. Usa Next.js 16.4.2 y React 19.3.1 con App Router como BFF para Maya API; las credenciales y la obtención de datos privados permanecen en el servidor.
+Aplicación web de seguimiento de metas, agenda, diario y nutrición. Usa Next.js 16.4.3 y React 19.3.1 con App Router como BFF para Maya API; las credenciales y la obtención de datos privados permanecen en el servidor.
 
 ## Requisitos
 
@@ -38,7 +38,7 @@ bun run build
 
 `bun run check` ejecuta lint, generación y comprobación de tipos, y todos los tests.
 
-`bun run start` exige Node.js en el `PATH`, evitando ejecutar accidentalmente el servidor de producción con Bun. Las pruebas E2E arrancan el build con Node y una API de fixtures aislada en `127.0.0.1:4012`, con credenciales exclusivas de prueba. Cubren escritorio, móvil y tablet; no usan ni modifican la API configurada en `.env`.
+Instala Node.js en el `PATH` antes de ejecutar `start` o las pruebas E2E. Sin él, Bun puede sustituir el comando `node` con su propio runtime; la configuración de Playwright rechaza esa ejecución con un mensaje explícito. Las pruebas E2E arrancan el build con Node y una API de fixtures aislada en `127.0.0.1:4012`, con credenciales exclusivas de prueba. Cubren escritorio, móvil y tablet; no usan ni modifican la API configurada en `.env`.
 
 ## Arquitectura
 
@@ -57,14 +57,14 @@ Las colecciones grandes usan paginación por cursor en la URL y nunca se seriali
 
 El contrato de integración está documentado en [`maya-api.md`](maya-api.md). Proxy valida `/auth/me` antes de continuar, incluso con un JWT no caducado, y renueva una sola vez si recibe `401 UNAUTHORIZED` o `INVALID_TOKEN`. La renovación ocurre exclusivamente allí para persistir ambos tokens y el perfil en la cookie. Cada renovación envía `base64url(SHA-256(refreshToken))` como `Idempotency-Key`; Maya API conserva el replay durante 10 segundos. Los fallos temporales no borran la sesión. Al volver al primer plano se revalida la pantalla.
 
-El perfil envía únicamente campos modificados; cambiar el correo exige la contraseña actual. La zona IANA es editable y determina las fechas de agenda y registros. Las ejecuciones rechazadas por cambio de día deben reconciliarse, no reproducirse como actividad del día nuevo. El diario permite varias entradas por fecha. Tareas y revisiones disponen de paginación sin depender de los límites del detalle de meta.
+El perfil envía únicamente campos modificados; cambiar el correo exige la contraseña actual. La zona IANA es editable y determina las fechas de agenda y registros. Cada ejecución envía `expectedDate` a la API, que comprueba el día actual con la zona horaria de la cuenta. Las ejecuciones rechazadas por cambio de día deben reconciliarse, no reproducirse como actividad del día nuevo. Despliega primero la API que admite esta precondición. El diario permite varias entradas por fecha. Tareas y revisiones disponen de paginación sin depender de los límites del detalle de meta.
 
 Las sugerencias de IA se previsualizan antes de aplicarse y guardar; una edición descarta la respuesta pendiente. Su timeout HTTP es de 20 segundos, con margen sobre los 15 del proveedor. Las calorías son el total de la cantidad enviada, nunca un valor a multiplicar de nuevo.
+
+La agenda descarta los resultados tardíos de escrituras del día anterior después de recibir una fecha nueva. El cambio de día reinicia el temporizador y sus avisos mediante una única reconciliación; las pruebas cubren respuestas tardías exitosas y fallidas y errores al reabrir tareas. Tras guardar, la Server Action y el renderizado de la ruta comparten la consulta privada para evitar una segunda lectura de `/today/tasks`. Las pruebas E2E verifican completar, reabrir y recargar la agenda.
 
 Las invalidaciones del cliente no eliminan la caché interna de Maya API: las tendencias pueden tardar hasta 60 segundos y las estadísticas administrativas hasta 30 segundos en reflejar cambios. No se usa polling para forzar esos agregados. Los errores conservan `requestId` y `retryAfter` (segundos) cuando están disponibles, sin mostrar mensajes internos de la API.
 
 Si una renovación queda incierta tras el reintento acotado, la cookie se marca para impedir reproducciones posteriores del token consumido y se solicita iniciar sesión; no se afirma que el servidor la haya revocado. Si la rotación sí se confirma pero falla la consulta posterior del perfil, el par sucesor se conserva para no perder la sesión.
 
 React Compiler está habilitado mediante la opción estable `reactCompiler: true` y `babel-plugin-react-compiler`. No se requiere memoización manual por defecto.
-
-La auditoría actual, las decisiones de dependencias y las verificaciones están en [`AUDIT.md`](AUDIT.md). `REFACTOR.md` conserva el informe histórico de septiembre.

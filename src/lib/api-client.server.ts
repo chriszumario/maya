@@ -88,6 +88,10 @@ const safeMessagesByCode: Record<string, string> = {
   PASSWORD_CHANGED:
     "La contraseña cambió en otra sesión. Vuelve a iniciar sesión.",
   GOAL_TERMINAL: "La meta ya está completada o cancelada. Recarga sus datos.",
+  GOAL_UPDATE_CONFLICT:
+    "La meta cambió en otra sesión. Recarga antes de volver a guardar.",
+  AGENDA_DATE_CHANGED:
+    "El día cambió. Recarga la agenda antes de registrar actividad.",
   TASK_UPDATE_CONFLICT:
     "La tarea cambió en otra sesión. Recarga antes de volver a guardar.",
   TASK_LOG_UPDATE_CONFLICT:

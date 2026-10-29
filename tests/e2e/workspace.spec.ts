@@ -159,3 +159,23 @@ test("redirects an authenticated user away from login", async ({ page }) => {
     page.getByRole("button", { name: "Iniciar sesión" }),
   ).not.toBeVisible();
 });
+
+test("completes and reopens an agenda task and retains its state after reload", async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await page.goto("/today");
+  await page
+    .getByRole("button", { name: "Marcar Leer un capítulo como completada" })
+    .click();
+  const reopen = page.getByRole("button", { name: "Reabrir Leer un capítulo" });
+  await expect(reopen).toBeEnabled();
+  await page.reload();
+  await expect(reopen).toBeVisible();
+  await reopen.click();
+  await expect(page.getByText("En curso", { exact: true })).toBeVisible();
+  await page.reload();
+  await expect(page.getByText("En curso", { exact: true })).toBeVisible();
+  expect(errors).toEqual([]);
+});

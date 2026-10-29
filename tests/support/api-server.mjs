@@ -19,7 +19,19 @@ createServer(async (request, response) => {
   if (pathname === "/health") return response.end(JSON.stringify({ ok: true }));
   if (pathname === "/auth/login" && request.method === "POST") {
     const accessToken = `${encode({ alg: "HS256", typ: "JWT" })}.${encode({ exp: Math.floor(Date.now() / 1000) + 3600, sid: randomUUID() })}.test-signature`;
-    sessions.set(`Bearer ${accessToken}`, { nutrition: [], nextId: 1 });
+    sessions.set(`Bearer ${accessToken}`, {
+      nutrition: [],
+      nextId: 1,
+      task: {
+        id: 1,
+        title: "Leer un capítulo",
+        goalTitle: "Aprender",
+        estimatedMinutes: 30,
+        startTime: "08:00",
+        status: "pending",
+        durationMinutes: 0,
+      },
+    });
     return response.end(
       JSON.stringify({
         accessToken,
@@ -80,11 +92,41 @@ createServer(async (request, response) => {
     Object.assign(entry, input);
     return response.end(JSON.stringify(entry));
   }
-  if (pathname === "/today/tasks") {
+  if (session && pathname === "/task-logs" && request.method === "POST") {
+    let body = "";
+    for await (const chunk of request) body += chunk;
+    const input = JSON.parse(body);
+    const localDate = new Date().toISOString().slice(0, 10);
+    if (input.expectedDate !== localDate) {
+      response.statusCode = 409;
+      return response.end(
+        JSON.stringify({
+          error: {
+            code: "AGENDA_DATE_CHANGED",
+            message: "Agenda date changed",
+          },
+        }),
+      );
+    }
+    session.task.status = input.status;
+    session.task.durationMinutes = input.durationMinutes;
+    return response.end(
+      JSON.stringify({
+        id: 1,
+        taskId: session.task.id,
+        localDate,
+        status: input.status,
+        durationMinutes: input.durationMinutes,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      }),
+    );
+  }
+  if (session && pathname === "/today/tasks") {
     return response.end(
       JSON.stringify({
         date: new Date().toISOString().slice(0, 10),
-        tasks: [],
+        tasks: [session.task],
       }),
     );
   }

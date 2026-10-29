@@ -115,17 +115,24 @@ export function TodayView({
   const autoCompleteKey = autoCompleteStorageKey(userId);
   const snapshotDateRef = useRef(initialData.date);
 
-  useEffect(() => {
-    if (snapshotDateRef.current !== initialData.date) {
+  function replaceAgenda(snapshot: TodayTasks) {
+    if (snapshotDateRef.current !== snapshot.date) {
       writeStoredValue(timerStorageKey(userId, snapshotDateRef.current), null);
       setTimer(null);
       setTimerReady(false);
       setCompletionNotice(undefined);
+      warningFeedbackRef.current = null;
+      completionFeedbackRef.current = null;
       completionInFlightRef.current = null;
-      snapshotDateRef.current = initialData.date;
+      snapshotDateRef.current = snapshot.date;
     }
-    setData(initialData);
-  }, [initialData, userId]);
+    setData(snapshot);
+  }
+
+  const syncInitialData = useEffectEvent(replaceAgenda);
+  useEffect(() => {
+    syncInitialData(initialData);
+  }, [initialData]);
 
   const updateTask = useMutation({
     mutationFn: async ({
@@ -157,22 +164,23 @@ export function TodayView({
       return { previousToday };
     },
     onError: (_error, _variables, context) => {
-      if (context?.previousToday) {
+      if (context?.previousToday.date === snapshotDateRef.current) {
         setData(context.previousToday);
       }
     },
-    onSuccess: ({ syncError, taskLog, today }) => {
+    onSuccess: ({ syncError, taskLog, today }, _variables, context) => {
+      if (context?.previousToday.date !== snapshotDateRef.current) return;
       setSyncWarning(syncError ?? undefined);
-      setData(
-        (current) =>
-          today ??
+      if (today) replaceAgenda(today);
+      else
+        setData((current) =>
           updateTodayTaskData(
             current,
             taskLog.taskId,
             taskLog.status,
             taskLog.durationMinutes,
           ),
-      );
+        );
     },
   });
 
@@ -182,15 +190,7 @@ export function TodayView({
       if (!result.ok) throwActionError(result.error);
       return result.data;
     },
-    onSuccess: (snapshot) => {
-      if (snapshot.date !== data.date) {
-        writeStoredValue(timerKey, null);
-        setTimer(null);
-        setCompletionNotice(undefined);
-        completionInFlightRef.current = null;
-      }
-      setData(snapshot);
-    },
+    onSuccess: replaceAgenda,
   });
 
   const completedCount = tasks.filter(
@@ -313,27 +313,20 @@ export function TodayView({
     };
   }, []);
 
-  const reconcile = useEffectEvent(() => {
+  const checkDate = useEffectEvent(() => {
     if (
+      localDateInTimeZone(timezone) !== data.date &&
       document.visibilityState !== "hidden" &&
       !updateTask.isPending &&
       !refreshToday.isPending
     )
       refreshToday.mutate();
   });
-  const checkDate = useEffectEvent(() => {
-    if (localDateInTimeZone(timezone) !== data.date) reconcile();
-  });
 
   useEffect(() => {
-    document.addEventListener("visibilitychange", reconcile);
-    window.addEventListener("pageshow", reconcile);
+    // AppShell refreshes the route on foreground events and supplies new initialData.
     const interval = window.setInterval(checkDate, 60_000);
-    return () => {
-      document.removeEventListener("visibilitychange", reconcile);
-      window.removeEventListener("pageshow", reconcile);
-      window.clearInterval(interval);
-    };
+    return () => window.clearInterval(interval);
   }, []);
 
   useEffect(() => {
@@ -407,6 +400,7 @@ export function TodayView({
         durationMinutes: activeTask.estimatedMinutes,
       })
       .then(() => {
+        if (snapshotDateRef.current !== data.date) return;
         setCompletionNotice({
           title: activeTask.title,
           minutes: activeTask.estimatedMinutes,
@@ -423,6 +417,7 @@ export function TodayView({
     timer,
     updateTask,
     refreshToday.isPending,
+    data.date,
   ]);
 
   async function changeStatus(
@@ -447,6 +442,7 @@ export function TodayView({
     try {
       await changeStatus(task, "in_progress");
     } catch {
+      if (snapshotDateRef.current !== data.date) return;
       setTimer((current) =>
         current?.taskId === task.id ? previousTimer : current,
       );
@@ -461,6 +457,7 @@ export function TodayView({
     try {
       await changeStatus(activeTask, "in_progress", durationMinutes);
     } catch {
+      if (snapshotDateRef.current !== data.date) return;
       setTimer((current) =>
         current?.taskId === activeTask.id ? timer : current,
       );
@@ -482,11 +479,7 @@ export function TodayView({
             )
           : undefined;
 
-      setData(refreshed);
       if (!serverTask) {
-        if (refreshed.date !== requestDate) {
-          writeStoredValue(timerKey, null);
-        }
         setTimer((current) => (current?.taskId === taskId ? null : current));
         return;
       }
@@ -518,13 +511,19 @@ export function TodayView({
     try {
       await changeStatus(task, "completed", boundedMinutes(seconds));
     } catch {
-      if (hasActiveTimer) setTimer(timer);
+      if (hasActiveTimer && snapshotDateRef.current === data.date)
+        setTimer(timer);
     }
   }
 
   async function reopenTask(task: TodayTask) {
-    await changeStatus(task, "in_progress");
-    if (timer?.taskId === task.id) setTimer(null);
+    try {
+      await changeStatus(task, "in_progress");
+      if (snapshotDateRef.current === data.date && timer?.taskId === task.id)
+        setTimer(null);
+    } catch {
+      // The mutation restores the agenda and exposes the error in the alert.
+    }
   }
 
   function setTaskAutoComplete(taskId: number, checked: boolean) {

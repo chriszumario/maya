@@ -1,24 +1,23 @@
-import { afterEach, beforeEach, expect, test, vi } from "vitest";
+import { beforeEach, expect, test, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ api: vi.fn(), user: vi.fn() }));
+const mocks = vi.hoisted(() => ({ api: vi.fn() }));
 vi.mock("@/features/auth/server/authenticated-api.server", () => ({
   authenticatedApiFetch: mocks.api,
 }));
-vi.mock("@/features/auth/server/auth-session.server", () => ({
-  readSessionUser: mocks.user,
-}));
 
 import { updateTodayTaskFn } from "@/features/today/server";
+import { ApiClientError } from "@/lib/api-client.server";
 
-beforeEach(() => {
-  vi.clearAllMocks();
-  vi.useFakeTimers();
-  vi.setSystemTime(new Date("2026-10-21T02:00:00Z"));
-  mocks.user.mockResolvedValue({ timezone: "America/La_Paz" });
-});
-afterEach(() => vi.useRealTimers());
+beforeEach(() => vi.resetAllMocks());
 
-test("does not replay an old task log after local midnight", async () => {
+test("preserves the API date conflict without retrying the activity", async () => {
+  mocks.api.mockRejectedValue(
+    new ApiClientError({
+      status: 409,
+      code: "AGENDA_DATE_CHANGED",
+      message: "El día cambió. Recarga la agenda antes de registrar actividad.",
+    }),
+  );
   const result = await updateTodayTaskFn({
     data: {
       taskId: 1,
@@ -31,10 +30,10 @@ test("does not replay an old task log after local midnight", async () => {
     ok: false,
     error: { code: "AGENDA_DATE_CHANGED" },
   });
-  expect(mocks.api).not.toHaveBeenCalled();
+  expect(mocks.api).toHaveBeenCalledTimes(1);
 });
 
-test("uses the account timezone and never sends a date to the log upsert", async () => {
+test("sends the agenda date for the API to check against the current account timezone", async () => {
   mocks.api.mockResolvedValue({
     id: 1,
     taskId: 1,
@@ -57,5 +56,6 @@ test("uses the account timezone and never sends a date to the log upsert", async
     taskId: 1,
     status: "completed",
     durationMinutes: 30,
+    expectedDate: "2026-10-20",
   });
 });

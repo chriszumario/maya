@@ -1,5 +1,11 @@
 import { defineConfig, devices } from "@playwright/test";
 
+if (process.versions.bun) {
+  throw new Error(
+    "Playwright requiere Node.js en PATH; no ejecutes esta suite con Bun.",
+  );
+}
+
 const port = 4011;
 const baseURL = `http://127.0.0.1:${port}`;
 

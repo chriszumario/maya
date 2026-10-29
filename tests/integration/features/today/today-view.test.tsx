@@ -43,6 +43,9 @@ test("does not carry a persisted timer into a new server date", async () => {
   expect(
     window.localStorage.getItem("maya:today-timer:1:2026-10-20"),
   ).not.toBeNull();
+  fireEvent(document, new Event("visibilitychange"));
+  fireEvent(window, new Event("pageshow"));
+  expect(mocks.refreshTodayTasksFn).not.toHaveBeenCalled();
   rerender(
     <TodayView userId={1} initialData={{ date: "2026-10-21", tasks: [] }} />,
   );
@@ -156,4 +159,96 @@ test("reconciles midnight while the running timer renders every second", async (
     window.localStorage.getItem("maya:today-timer:1:2026-10-20"),
   ).toBeNull();
   expect(mocks.updateTodayTaskFn).not.toHaveBeenCalled();
+});
+
+test.each(["success", "failure"])(
+  "keeps the new agenda when yesterday's pending write ends in %s",
+  async (outcome) => {
+    const task = {
+      id: 1,
+      title: "Leer",
+      goalTitle: "Aprender",
+      estimatedMinutes: 30,
+      startTime: "09:00",
+      status: "in_progress" as const,
+      durationMinutes: 1,
+    };
+    const pending = Promise.withResolvers<unknown>();
+    mocks.updateTodayTaskFn.mockReturnValue(pending.promise);
+    const previous = { date: "2026-10-20", tasks: [task] };
+    const { rerender } = render(
+      <TodayView userId={1} initialData={previous} />,
+    );
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Finalizar" }));
+    });
+    expect(mocks.updateTodayTaskFn).toHaveBeenCalledWith({
+      data: {
+        taskId: 1,
+        status: "completed",
+        durationMinutes: 1,
+        expectedDate: previous.date,
+      },
+    });
+    rerender(
+      <TodayView userId={1} initialData={{ date: "2026-10-21", tasks: [] }} />,
+    );
+    await act(async () => {
+      pending.resolve(
+        outcome === "success"
+          ? {
+              ok: true,
+              data: {
+                taskLog: { taskId: 1, status: "completed", durationMinutes: 1 },
+                today: {
+                  ...previous,
+                  tasks: [{ ...task, status: "completed" }],
+                },
+                syncError: null,
+              },
+            }
+          : {
+              ok: false,
+              error: { code: "AGENDA_DATE_CHANGED", message: "El día cambió." },
+            },
+      );
+    });
+    expect(screen.getByText("Tu agenda está despejada")).toBeDefined();
+    expect(screen.queryByRole("button", { name: "Finalizar" })).toBeNull();
+    expect(
+      window.localStorage.getItem("maya:today-timer:1:2026-10-21"),
+    ).toBeNull();
+    expect(mocks.updateTodayTaskFn).toHaveBeenCalledOnce();
+  },
+);
+
+test("shows a failed reopen without an unhandled rejection or changing the completed task", async () => {
+  mocks.updateTodayTaskFn.mockResolvedValue({
+    ok: false,
+    error: { code: "GOAL_TERMINAL", message: "La meta ya está completada." },
+  });
+  render(
+    <TodayView
+      userId={1}
+      initialData={{
+        date: "2026-10-20",
+        tasks: [
+          {
+            id: 1,
+            title: "Leer",
+            goalTitle: "Aprender",
+            estimatedMinutes: 30,
+            startTime: "09:00",
+            status: "completed",
+            durationMinutes: 30,
+          },
+        ],
+      }}
+    />,
+  );
+  await act(async () => {
+    fireEvent.click(screen.getByRole("button", { name: "Reabrir Leer" }));
+  });
+  expect(screen.getByText("La meta ya está completada.")).toBeDefined();
+  expect(screen.getByRole("button", { name: "Reabrir Leer" })).toBeDefined();
 });

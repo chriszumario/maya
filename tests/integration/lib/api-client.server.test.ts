@@ -67,17 +67,33 @@ describe("API client", () => {
     expect(request?.redirect).toBe("error");
   });
 
-  test("keeps API error code and status", async () => {
-    vi.mocked(fetch).mockResolvedValue(
-      json({ error: { code: "GOAL_TERMINAL", message: "internal" } }, 409),
-    );
+  test.each([
+    [
+      "GOAL_TERMINAL",
+      "La meta ya está completada o cancelada. Recarga sus datos.",
+    ],
+    [
+      "GOAL_UPDATE_CONFLICT",
+      "La meta cambió en otra sesión. Recarga antes de volver a guardar.",
+    ],
+    [
+      "AGENDA_DATE_CHANGED",
+      "El día cambió. Recarga la agenda antes de registrar actividad.",
+    ],
+  ])(
+    "keeps the actionable message and status for %s",
+    async (code, message) => {
+      vi.mocked(fetch).mockResolvedValue(
+        json({ error: { code, message: "internal" } }, 409),
+      );
 
-    await expect(apiFetch("/goals/1")).rejects.toMatchObject({
-      code: "GOAL_TERMINAL",
-      message: "La meta ya está completada o cancelada. Recarga sus datos.",
-      status: 409,
-    });
-  });
+      await expect(apiFetch("/goals/1")).rejects.toMatchObject({
+        code,
+        message,
+        status: 409,
+      });
+    },
+  );
 
   test("normalizes network failures without leaking their message", async () => {
     vi.spyOn(console, "error").mockImplementation(() => undefined);
