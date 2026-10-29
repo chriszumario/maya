@@ -7,7 +7,7 @@ test("navigates between the public authentication pages", async ({ page }) => {
     page.getByRole("heading", { level: 2, name: "Bienvenido de nuevo" }),
   ).toBeVisible();
   await expect(page.getByLabel("Correo electrónico")).toBeVisible();
-  await expect(page.getByLabel("Contraseña")).toBeVisible();
+  await expect(page.getByLabel("Contraseña", { exact: true })).toBeVisible();
 
   await page.getByRole("link", { name: "Registrarme" }).click();
 
@@ -16,6 +16,28 @@ test("navigates between the public authentication pages", async ({ page }) => {
     page.getByRole("heading", { level: 2, name: "Crea tu cuenta" }),
   ).toBeVisible();
 });
+
+for (const route of ["/login", "/register"]) {
+  test(`toggles password visibility with the keyboard on ${route}`, async ({
+    page,
+  }) => {
+    await page.goto(route);
+    const password = page.getByLabel("Contraseña", { exact: true });
+    await password.fill("test-password-12345");
+    await expect(password).toHaveAttribute("type", "password");
+
+    const toggle = page.getByRole("button", { name: "Mostrar contraseña" });
+    await toggle.focus();
+    await page.keyboard.press("Enter");
+    await expect(password).toHaveAttribute("type", "text");
+    await expect(password).toHaveValue("test-password-12345");
+
+    await page.keyboard.press("Space");
+    await expect(password).toHaveAttribute("type", "password");
+    await expect(page).toHaveURL(route);
+    await expect(page.getByRole("alert")).toHaveCount(0);
+  });
+}
 
 test("shows client-side registration errors", async ({ page }) => {
   await page.goto("/register");

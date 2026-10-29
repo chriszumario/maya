@@ -27,6 +27,37 @@ test("confirms a saved profile and shows an API error without losing navigation"
   await expect(page.getByRole("button", { name: "Reintentar" })).toBeVisible();
 });
 
+test("toggles profile and security passwords independently", async ({
+  page,
+}) => {
+  const profilePassword = page.getByLabel("Contraseña actual", { exact: true });
+  await profilePassword.fill("test-password-12345");
+  await page.getByRole("button", { name: "Mostrar contraseña" }).click();
+  await expect(profilePassword).toHaveAttribute("type", "text");
+  await page.getByRole("button", { name: "Ocultar contraseña" }).click();
+  await expect(profilePassword).toHaveAttribute("type", "password");
+
+  await page.getByRole("tab", { name: "Seguridad" }).click();
+  for (const label of [
+    "Contraseña actual",
+    "Nueva contraseña",
+    "Confirmar contraseña",
+  ]) {
+    const password = page.getByLabel(label, { exact: true });
+    await password.fill("test-password-12345");
+    const group = page
+      .locator('[data-slot="input-group"]')
+      .filter({ has: password });
+    await group.getByRole("button", { name: "Mostrar contraseña" }).click();
+    await expect(password).toHaveAttribute("type", "text");
+    await expect(password).toHaveValue("test-password-12345");
+    await expect(page.locator('input[type="password"]:visible')).toHaveCount(2);
+    await group.getByRole("button", { name: "Ocultar contraseña" }).click();
+    await expect(password).toHaveAttribute("type", "password");
+  }
+  await expect(page).toHaveURL("/settings");
+});
+
 test("navigates with an authenticated session and closes the mobile drawer", async ({
   page,
 }) => {

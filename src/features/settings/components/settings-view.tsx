@@ -12,6 +12,7 @@ import { KeyRoundIcon, SaveIcon, UserRoundIcon } from "lucide-react";
 import { useState } from "react";
 
 import { PageHeader } from "@/components/shared/page-header";
+import { PasswordInput } from "@/components/shared/password-input";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
@@ -162,11 +163,10 @@ function ProfileForm({ user }: { user: AuthUser }) {
                   <FieldLabel htmlFor="profile-password">
                     Contraseña actual
                   </FieldLabel>
-                  <Input
+                  <PasswordInput
                     {...field.props}
                     id="profile-password"
                     aria-describedby="profile-password-description profile-password-error"
-                    type="password"
                     value={field.input ?? ""}
                     autoComplete="current-password"
                     aria-invalid={Boolean(field.errors)}
@@ -255,7 +255,7 @@ function PasswordForm() {
                 {(field) => (
                   <Field data-invalid={Boolean(field.errors)}>
                     <FieldLabel htmlFor={path}>{label}</FieldLabel>
-                    <Input
+                    <PasswordInput
                       {...field.props}
                       id={path}
                       aria-describedby={
@@ -263,7 +263,6 @@ function PasswordForm() {
                           ? `${path}-description ${path}-error`
                           : `${path}-error`
                       }
-                      type="password"
                       value={field.input ?? ""}
                       autoComplete={autoComplete}
                       aria-invalid={Boolean(field.errors)}

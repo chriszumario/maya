@@ -1,8 +1,11 @@
 "use server";
 
-import { updateTag } from "next/cache";
+import { refresh, updateTag } from "next/cache";
 import * as v from "valibot";
+import { readSessionUser } from "@/features/auth/server/auth-session.server";
+import { ApiClientError } from "@/lib/api-client.server";
 import { cacheTags } from "@/lib/cache-tags";
+import { toPublicError } from "@/lib/server-error.server";
 import { AdminUserIdInputSchema } from "./schemas";
 import * as operations from "./server";
 
@@ -11,6 +14,30 @@ function updateAdminTags(userId?: number) {
   updateTag(cacheTags.adminUsers);
   updateTag(cacheTags.adminPending);
   if (userId) updateTag(cacheTags.adminUser(userId));
+}
+
+export async function refreshAdminStatsFn() {
+  try {
+    const user = await readSessionUser();
+    if (!user?.isAdmin) {
+      throw new ApiClientError({
+        code: "FORBIDDEN",
+        message: "No tienes permisos para realizar esta operación.",
+        status: 403,
+      });
+    }
+    updateTag(cacheTags.admin);
+    refresh();
+    return { ok: true as const };
+  } catch (error) {
+    return {
+      ok: false as const,
+      error: toPublicError(
+        error,
+        "No se pudo actualizar el estado del sistema.",
+      ),
+    };
+  }
 }
 
 export async function approveUserFn(

@@ -36,6 +36,7 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import type { AdminStats } from "../schemas";
+import { AdminStatsRefresh } from "./admin-stats-refresh";
 
 const numberFormatter = new Intl.NumberFormat("es-BO");
 
@@ -286,10 +287,12 @@ export function AdminDashboardView({ stats }: { stats: AdminStats }) {
             Estado del sistema
           </CardTitle>
           <CardDescription>
-            Información operativa reportada por la API.
+            Última información consultada a la API; no es monitoreo en tiempo
+            real. Las estadísticas pueden tardar hasta 30 segundos en reflejar
+            cambios.
           </CardDescription>
           <CardAction>
-            <Badge>Conectada</Badge>
+            <AdminStatsRefresh />
           </CardAction>
         </CardHeader>
         <CardContent className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -302,7 +305,9 @@ export function AdminDashboardView({ stats }: { stats: AdminStats }) {
             <p className="mt-1 font-semibold">{stats.system.version}</p>
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">Tiempo activa</p>
+            <p className="text-xs text-muted-foreground">
+              Tiempo activa al consultar
+            </p>
             <p className="mt-1 font-semibold">
               {formatUptime(stats.system.uptimeSeconds)}
             </p>
@@ -318,6 +323,11 @@ export function AdminDashboardView({ stats }: { stats: AdminStats }) {
             >
               {stats.system.aiConfigured ? "Configurada" : "No configurada"}
             </Badge>
+            {!stats.system.aiConfigured ? (
+              <p className="mt-2 text-xs text-muted-foreground">
+                La API no reporta una configuración de IA.
+              </p>
+            ) : null}
           </div>
         </CardContent>
       </Card>

@@ -12,6 +12,7 @@ import { ArrowRightIcon } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
+import { PasswordInput } from "@/components/shared/password-input";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { FieldGroup } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -136,13 +137,12 @@ function RegisterFormContent() {
                   errors={field.errors}
                   description="Entre 12 y 128 caracteres."
                 >
-                  <Input
+                  <PasswordInput
                     {...field.props}
                     id="register-password"
-                    type="password"
                     value={field.input ?? ""}
                     autoComplete="section-register new-password"
-                    className="h-11 px-4"
+                    className="h-11"
                     aria-invalid={Boolean(field.errors)}
                     aria-describedby={
                       field.errors

@@ -13,6 +13,7 @@ import type { Route } from "next";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
+import { PasswordInput } from "@/components/shared/password-input";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { FieldGroup } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -105,13 +106,12 @@ function LoginFormContent({ redirectTo }: { redirectTo?: string }) {
                   errors={field.errors}
                   description="Usa las credenciales de tu cuenta aprobada."
                 >
-                  <Input
+                  <PasswordInput
                     {...field.props}
                     id="login-password"
-                    type="password"
                     value={field.input ?? ""}
                     autoComplete="section-login current-password"
-                    className="h-11 px-4"
+                    className="h-11"
                     aria-invalid={Boolean(field.errors)}
                     aria-describedby={
                       field.errors
