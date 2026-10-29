@@ -150,11 +150,6 @@
 }
 
 @layer utilities {
-  .brand-mark {
-    background: oklch(0.31 0.07 160);
-    color: oklch(0.965 0.012 88);
-  }
-
   .focus-card {
     background:
       radial-gradient(

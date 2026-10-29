@@ -25,7 +25,7 @@ function AuthBrand() {
       href="/login"
       className="inline-flex w-fit items-center gap-3 rounded-xl focus-visible:outline-none focus-visible:ring-3 focus-visible:ring-ring/30"
     >
-      <MayaMark className="size-11" />
+      <MayaMark className="size-11 lg:text-inherit" />
       <span>
         <span className="block font-heading text-2xl leading-none font-semibold">
           Maya
