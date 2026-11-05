@@ -18,42 +18,44 @@ import {
 import { proxy } from "@/proxy";
 
 const nowSeconds = 2_000_000_000;
+const protectedUrl = "https://maya.test/goals?status=completed";
+const loginUrl =
+  "https://maya.test/login?redirect=%2Fgoals%3Fstatus%3Dcompleted";
+const sessionExpiredUrl = "https://maya.test/auth/session-expired";
+const user = {
+  id: 1,
+  name: "Test User",
+  email: "test@example.com",
+  isAdmin: false,
+  timezone: "UTC",
+};
+
+function apiErrorResponse(status: number, code: string, headers?: HeadersInit) {
+  return Response.json(
+    { error: { code, message: "Request failed" } },
+    { status, headers },
+  );
+}
 
 function requestWithSession(expiresAt: number) {
   const session = encodeSession({
     accessToken: testAccessToken(expiresAt),
     refreshToken: testRefreshToken,
-    user: {
-      id: 1,
-      name: "Test User",
-      email: "test@example.com",
-      isAdmin: false,
-      timezone: "UTC",
-    },
+    user,
   });
-  return new NextRequest("https://maya.test/goals?status=completed", {
+  return new NextRequest(protectedUrl, {
     headers: { cookie: `${SESSION_COOKIE_NAME}=${session}` },
   });
 }
 
 beforeEach(() => {
-  vi.clearAllMocks();
+  vi.resetAllMocks();
   vi.useFakeTimers();
   vi.setSystemTime(nowSeconds * 1_000);
   vi.stubEnv("API_URL", "https://api.maya.test");
   vi.stubGlobal(
     "fetch",
-    vi.fn().mockResolvedValue(
-      new Response(
-        JSON.stringify({
-          id: 1,
-          name: "Test User",
-          email: "test@example.com",
-          isAdmin: false,
-          timezone: "UTC",
-        }),
-      ),
-    ),
+    vi.fn().mockImplementation(async () => Response.json(user)),
   );
 });
 
@@ -67,12 +69,7 @@ describe("authentication proxy", () => {
     };
     mocks.refreshTokens.mockResolvedValue(tokens);
     vi.mocked(fetch).mockResolvedValueOnce(
-      new Response(
-        JSON.stringify({
-          error: { code: "RATE_LIMIT_UNAVAILABLE", message: "temporary" },
-        }),
-        { status: 503 },
-      ),
+      apiErrorResponse(503, "RATE_LIMIT_UNAVAILABLE"),
     );
     const response = await proxy(requestWithSession(nowSeconds));
     expect(response.status).toBe(503);
@@ -90,9 +87,7 @@ describe("authentication proxy", () => {
       }),
     );
     const response = await proxy(requestWithSession(nowSeconds));
-    expect(response.headers.get("location")).toBe(
-      "https://maya.test/auth/session-expired",
-    );
+    expect(response.headers.get("location")).toBe(sessionExpiredUrl);
     const value = response.cookies.get(SESSION_COOKIE_NAME)?.value;
     expect(decodeSession(value)).toMatchObject({
       refreshBlocked: true,
@@ -107,37 +102,30 @@ describe("authentication proxy", () => {
     expect(mocks.refreshTokens).not.toHaveBeenCalled();
   });
 
-  test.each([403, 429])(
-    "keeps status %s without attempting refresh",
-    async (status) => {
+  test.each([
+    { status: 403, code: "FORBIDDEN", retryAfter: null },
+    { status: 429, code: "RATE_LIMITED", retryAfter: "900" },
+  ])(
+    "keeps status $status without attempting refresh",
+    async ({ status, code, retryAfter }) => {
       vi.mocked(fetch).mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({
-            error: {
-              code: status === 403 ? "FORBIDDEN" : "RATE_LIMITED",
-              message: "unavailable",
-            },
-          }),
-          { status, headers: { "Retry-After": "900" } },
-        ),
+        apiErrorResponse(status, code, { "Retry-After": "900" }),
       );
+
       const response = await proxy(requestWithSession(nowSeconds + 60));
+
       expect(response.status).toBe(status);
-      if (status === 429)
-        expect(response.headers.get("Retry-After")).toBe("900");
+      expect(response.headers.get("Retry-After")).toBe(retryAfter);
       expect(mocks.refreshTokens).not.toHaveBeenCalled();
       expect(response.cookies.get(SESSION_COOKIE_NAME)).toBeUndefined();
     },
   );
+
   test("redirects an absent session to login and preserves the destination", async () => {
-    const response = await proxy(
-      new NextRequest("https://maya.test/goals?status=completed"),
-    );
+    const response = await proxy(new NextRequest(protectedUrl));
 
     expect(response.status).toBe(307);
-    expect(response.headers.get("location")).toBe(
-      "https://maya.test/login?redirect=%2Fgoals%3Fstatus%3Dcompleted",
-    );
+    expect(response.headers.get("location")).toBe(loginUrl);
     expect(response.cookies.get(SESSION_COOKIE_NAME)?.value).toBe("");
   });
 
@@ -152,57 +140,51 @@ describe("authentication proxy", () => {
     );
   });
 
-  test("recovers a revoked but unexpired access JWT once", async () => {
-    vi.mocked(fetch).mockResolvedValueOnce(
-      new Response(
-        JSON.stringify({
-          error: { code: "INVALID_TOKEN", message: "revoked" },
-        }),
-        { status: 401 },
-      ),
-    );
-    mocks.refreshTokens.mockResolvedValue({
-      accessToken: testAccessToken(nowSeconds + 1800),
-      refreshToken: testRefreshToken,
-    });
-    const response = await proxy(requestWithSession(nowSeconds + 60));
-    expect(mocks.refreshTokens).toHaveBeenCalledWith(testRefreshToken, true);
-    expect(response.status).toBe(200);
-    expect(fetch).toHaveBeenCalledTimes(2);
-  });
+  test.each(["INVALID_TOKEN", "TOKEN_EXPIRED", "HTTP_ERROR"])(
+    "recovers an access JWT rejected with 401 and code %s once",
+    async (code) => {
+      vi.mocked(fetch).mockResolvedValueOnce(apiErrorResponse(401, code));
+      mocks.refreshTokens.mockResolvedValue({
+        accessToken: testAccessToken(nowSeconds + 1800),
+        refreshToken: testRefreshToken,
+      });
+
+      const response = await proxy(requestWithSession(nowSeconds + 60));
+
+      expect(mocks.refreshTokens).toHaveBeenCalledWith(testRefreshToken, true);
+      expect(response.status).toBe(200);
+      expect(fetch).toHaveBeenCalledTimes(2);
+    },
+  );
 
   test("does not clear sessions or refresh on a temporary validation failure", async () => {
     vi.mocked(fetch).mockResolvedValueOnce(
-      new Response(
-        JSON.stringify({
-          error: { code: "RATE_LIMIT_UNAVAILABLE", message: "temporary" },
-        }),
-        { status: 503 },
-      ),
+      apiErrorResponse(503, "RATE_LIMIT_UNAVAILABLE"),
     );
+
     const response = await proxy(requestWithSession(nowSeconds + 60));
+
     expect(response.status).toBe(503);
     expect(response.cookies.get(SESSION_COOKIE_NAME)).toBeUndefined();
     expect(mocks.refreshTokens).not.toHaveBeenCalled();
   });
 
   test("stops after a second 401 without a refresh loop", async () => {
-    vi.mocked(fetch).mockImplementation(
-      async () =>
-        new Response(
-          JSON.stringify({
-            error: { code: "INVALID_TOKEN", message: "revoked" },
-          }),
-          { status: 401 },
-        ),
+    vi.mocked(fetch).mockImplementation(async () =>
+      apiErrorResponse(401, "INVALID_TOKEN"),
     );
     mocks.refreshTokens.mockResolvedValue({
       accessToken: testAccessToken(nowSeconds + 1800),
       refreshToken: testRefreshToken,
     });
+
     const response = await proxy(requestWithSession(nowSeconds + 60));
+
     expect(response.status).toBe(307);
+    expect(response.headers.get("location")).toBe(loginUrl);
+    expect(response.cookies.get(SESSION_COOKIE_NAME)?.value).toBe("");
     expect(mocks.refreshTokens).toHaveBeenCalledOnce();
+    expect(fetch).toHaveBeenCalledTimes(2);
   });
 
   test("persists and forwards a successful token rotation", async () => {
@@ -228,19 +210,24 @@ describe("authentication proxy", () => {
     );
   });
 
-  test.each(["INVALID_REFRESH_TOKEN", "REFRESH_TOKEN_REUSE"])(
-    "clears the session after terminal refresh error %s",
-    async (code) => {
-      mocks.refreshTokens.mockRejectedValue(
-        new ApiClientError({ code, message: "invalid", status: 401 }),
-      );
+  test.each([
+    "INVALID_REFRESH_TOKEN",
+    "REFRESH_TOKEN_REUSE",
+    "REFRESH_TOKEN_EXPIRED",
+    "UNAUTHORIZED",
+    "HTTP_ERROR",
+  ])("clears the session after terminal refresh error %s", async (code) => {
+    mocks.refreshTokens.mockRejectedValue(
+      new ApiClientError({ code, message: "invalid", status: 401 }),
+    );
 
-      const response = await proxy(requestWithSession(nowSeconds));
+    const response = await proxy(requestWithSession(nowSeconds));
 
-      expect(response.status).toBe(307);
-      expect(response.cookies.get(SESSION_COOKIE_NAME)?.value).toBe("");
-    },
-  );
+    expect(response.status).toBe(307);
+    expect(response.headers.get("location")).toBe(loginUrl);
+    expect(response.cookies.get(SESSION_COOKIE_NAME)?.value).toBe("");
+    expect(fetch).not.toHaveBeenCalled();
+  });
 
   test("returns 503 when an expired token cannot be refreshed temporarily", async () => {
     mocks.refreshTokens.mockRejectedValue(
@@ -255,5 +242,6 @@ describe("authentication proxy", () => {
 
     expect(response.status).toBe(503);
     expect(response.headers.get("retry-after")).toBe("5");
+    expect(response.cookies.get(SESSION_COOKIE_NAME)).toBeUndefined();
   });
 });

@@ -1,10 +1,8 @@
 import { type NextRequest, NextResponse } from "next/server";
 import * as v from "valibot";
 
-import {
-  type AuthUser,
-  AuthUserSchema,
-} from "@/features/auth/schemas/auth.schema";
+import type { AuthTokens, AuthUser } from "@/features/auth/model/auth";
+import { AuthUserSchema } from "@/features/auth/schemas/auth.schema";
 import { refreshTokens } from "@/features/auth/server/refresh-tokens.server";
 import {
   decodeSession,
@@ -15,6 +13,30 @@ import {
 import { ApiClientError, apiFetch } from "@/lib/api-client.server";
 
 const REFRESH_WINDOW_SECONDS = 30;
+
+function isUnauthorized(error: unknown): error is ApiClientError {
+  return error instanceof ApiClientError && error.status === 401;
+}
+
+function isSessionRejected(error: unknown) {
+  return (
+    isUnauthorized(error) ||
+    (error instanceof ApiClientError &&
+      ["INVALID_REFRESH_TOKEN", "REFRESH_TOKEN_REUSE"].includes(error.code))
+  );
+}
+
+function tokensChanged(previous: AuthTokens, current: AuthTokens) {
+  return (
+    previous.accessToken !== current.accessToken ||
+    previous.refreshToken !== current.refreshToken
+  );
+}
+
+async function fetchCurrentUser(accessToken: string) {
+  const user = await apiFetch("/auth/me", { token: accessToken });
+  return v.parse(AuthUserSchema, user);
+}
 
 function tokenExpiration(accessToken: string) {
   try {
@@ -62,41 +84,25 @@ export async function proxy(request: NextRequest) {
   const expiresAt = tokenExpiration(accessToken);
   if (!expiresAt) return loginRedirect(request);
   const now = Math.floor(Date.now() / 1000);
-  let tokens = { accessToken, refreshToken };
+  const originalTokens = { accessToken, refreshToken };
+  let tokens = originalTokens;
   try {
     let currentUser: AuthUser | undefined;
-    let revoked = false;
+    let accessTokenRejected = false;
     if (expiresAt > now + REFRESH_WINDOW_SECONDS) {
       try {
-        currentUser = v.parse(
-          AuthUserSchema,
-          await apiFetch("/auth/me", { token: accessToken }),
-        );
+        currentUser = await fetchCurrentUser(accessToken);
       } catch (error) {
-        if (
-          !(error instanceof ApiClientError) ||
-          error.status !== 401 ||
-          !["UNAUTHORIZED", "INVALID_TOKEN"].includes(error.code)
-        )
-          throw error;
-        revoked = true;
+        if (!isUnauthorized(error)) throw error;
+        accessTokenRejected = true;
       }
     }
     if (!currentUser) {
-      tokens = await refreshTokens(refreshToken, revoked);
-      try {
-        currentUser = v.parse(
-          AuthUserSchema,
-          await apiFetch("/auth/me", { token: tokens.accessToken }),
-        );
-      } catch (error) {
-        if (error instanceof ApiClientError && error.status === 401)
-          return loginRedirect(request);
-        throw error;
-      }
+      tokens = await refreshTokens(refreshToken, accessTokenRejected);
+      currentUser = await fetchCurrentUser(tokens.accessToken);
     }
     if (
-      tokens.accessToken === accessToken &&
+      !tokensChanged(originalTokens, tokens) &&
       JSON.stringify(currentUser) === JSON.stringify(user)
     )
       return NextResponse.next();
@@ -120,12 +126,7 @@ export async function proxy(request: NextRequest) {
     );
     return response;
   } catch (error) {
-    if (
-      error instanceof ApiClientError &&
-      ["INVALID_REFRESH_TOKEN", "REFRESH_TOKEN_REUSE"].includes(error.code)
-    ) {
-      return loginRedirect(request);
-    }
+    if (isSessionRejected(error)) return loginRedirect(request);
     if (
       error instanceof ApiClientError &&
       error.code === "REFRESH_OUTCOME_UNCERTAIN"
@@ -160,12 +161,7 @@ export async function proxy(request: NextRequest) {
               },
       },
     );
-    // A successful rotation must be persisted even if the subsequent profile
-    // validation fails temporarily; retaining the consumed token would revoke it.
-    if (
-      tokens.refreshToken !== refreshToken ||
-      tokens.accessToken !== accessToken
-    )
+    if (tokensChanged(originalTokens, tokens))
       response.cookies.set(
         SESSION_COOKIE_NAME,
         encodeSession({ ...session, ...tokens }),
